@@ -1,0 +1,2 @@
+class EndOfTrialNotInTarget(Exception):
+    pass
