@@ -784,7 +784,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"equation_a: {equation_a}, pente_droite: {pente_droite}, r2score: {r2score}")
 
         # Write results to CSV
-        with open("resume_resultats.csv", 'a', newline='') as csvfile:
+        with open('resume_resultats.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([
                 result_file, RT, RtTrig, t_trigger, t_trigger_computed, distance_to_trigger, 

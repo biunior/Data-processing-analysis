@@ -266,10 +266,10 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     print(df.head())
 
     # Extract the result_file
-    files_paths = df["result_file"]
+    files_paths = df['result_file']
 
     # Compute the new columns
-    df["SA"] = df['trigger_to_target_time'] * df['trigger_to_target_distance']
+    df['SA'] = df['trigger_to_target_time'] * df['trigger_to_target_distance']
     df['precision'] = df['target_to_stop_time'] * df['target_to_stop_distance']
 
     folder_indexes = group_indexes_by_second_parent(files_paths)
@@ -302,9 +302,9 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     
     # function returns the elements of the dictionary in the order of the rows in the dataframe
     num_breaks_arr, break_timing_arr, break_position_arr = match_rows_df(files_paths, breaks_dict)
-    df[" num_breaks"] = num_breaks_arr 
-    df[" break_timings"] = break_timing_arr
-    df[" break_positions"] = break_position_arr
+    df['num_breaks'] = num_breaks_arr 
+    df['break_timings'] = break_timing_arr
+    df['break_positions'] = break_position_arr
 
     # Save the updated DataFrame to a new CSV file
     df.to_csv('updated_resume_resultats.csv', index=False)
