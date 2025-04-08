@@ -9,6 +9,7 @@ from shapely import Point
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plot # test
 from math import hypot
+import csv
 
 #todo : check if we need to import this because problematic
 from errors import EndOfTrialNotInTarget
@@ -692,112 +693,6 @@ def get_trial_status(df):
 #add function to indicate if feedback is on or off
 
 
-"""
-def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, timestep=0.01,
-                  minimum_target_time=min_target_time):
-    RT = t_trigger = RtTrig = t_final_target_enter = t_final_core_enter = None
-    TTTarg = ca = t_max_vx = TTrig = TtA = equation_a = pente_droite = r2score = None
-
-    try:
-        # définit des paramètres
-        # period_min = 0.01  # temps d'activité minimum pour considérer un début de mouvement - before set to 0.05 - check if reasonable to change TODO
-        # vy_min = 300  # 3 pixel/sec est la vitesse minimale pour dire qu'il y un début de mouvement
-        # charger un fichier
-        # df = load_trial_data()
-
-        print(f"Processing {result_file}")
-        print(trial_data)
-        print(trial_number)
-
-        target_position = trial_data["target_positions"][trial_number]
-        target_polygon = get_target_polygon(trial_data=trial_data, trial_number=trial_number)
-        target_center = get_target_center(trial_data, trial_number)
-        target_core_polygon = get_target_core_polygon(trial_data, trial_number=trial_number)
-
-        # ajouter les vitesses au dataframe
-        print("Adding time and speed to dataframe")
-        df = add_time_and_speed_to_df(df=df, time_step=timestep)
-        print("Adding movement started column")
-        df = add_movement_started_column(df=df, vy_min=vy_min, min_move_time=period_min, timestep=timestep)
-        print("Adding trigger crossed column")
-        df = add_trigger_crossed_column(df=df, trigger=trigger)
-        print("Adding in target column")
-        df = add_in_target_column(df=df, target_center=target_center, target_radius=target_radius)
-
-
-        # calculer le temps de début de mouvement
-        print("Calculating RT")
-        RT = get_RT(df)
-        print("Calculating t_trigger")
-        t_trigger = get_t_trigger(df)
-        print("Calculating RtTrig")
-        RtTrig = get_RtTrig(t_trigger=t_trigger, RT=RT)
-        print("Calculating time_first_target_enter")
-        t_first_target_enter = get_t_first_target_enter(df=df)
-        #print("Calculating t_final_target_enter")
-        #t_final_target_enter = get_t_final_target_enter(df=df, minimum_time_in=minimum_target_time)
-
-        print("Calculating TTTarg")
-        TTTarg = get_TTTarg(df=df, t_trigger=t_trigger, t_final_target_enter=t_final_target_enter)
-        print("Calculating ca")
-        ca = get_ca(t_final_target_enter=t_final_target_enter, t_final_core_enter=t_final_core_enter)
-
-        print("Calculating max_vx and t_max_vx")
-        max_vx, t_max_vx = get_t_max_vx(df=df, target_position=trial_data["target_positions"][trial_number],
-                                        t_trigger=t_trigger, t_trigger_buffer=0.12)  # todo : corriger
-
-        print("Calculating TTrig")
-        TTrig = get_TTrig(RT=RT, RtTrig=RtTrig)
-        print("Calculating TtA")
-        TtA = get_TtA(t_trigger, t_max_vx)
-
-        print("Calculating finale_distance_to_center and finale_distance_to_center_time")
-        finale_distance_to_center, finale_distance_to_center_time = get_cursor_final_distance(df=df, v_max=max_final_speed, trial_data=trial_data,
-                                                            target_center=target_center)
-
-        print("Calculating total_distance_travelled")
-        total_distance_travelled = get_total_distance(df=df)
-
-        TStop = None
-        if not finale_distance_to_center_time and t_final_target_enter:
-            TStop = df.iloc[-1]["t"] - t_final_target_enter
-        elif t_final_target_enter:
-            TStop = finale_distance_to_center_time - t_final_target_enter
-        else:
-            TStop = None
-
-        # y = a * x + b
-        print("Calculating linear regression")
-        equation_a, pente_droite, r2score = get_linear_regression(df=df, t_start=RT, t_end=RT + 0.1)
-        df.to_csv(result_file)
-        print(f"Trial computation completed for {result_file}")
-
-    except EndOfTrialNotInTarget:
-        print(f"End of trial not in target : {trial_number} {result_file}")
-    except Exception as e:
-        with open(result_file, 'w') as fd:
-            fd.write(f"Error : {e}")
-            print(f"Error :{result_file} {e}")
-
-    with open('resume_resultats.csv', 'a') as fd:
-        if t_max_vx is not None:
-            if t_max_vx != "centre":
-                t_max_vx = float(t_max_vx)
-        if TTrig is not None:
-            TTrig = float(TTrig)
-        if TtA is not None and TtA != "centre":
-            TtA = float(TtA)
-        if equation_a is not None:
-            equation_a = float(equation_a)
-        fd.write(
-            f"{result_file}, {RT}, {t_trigger}, {RtTrig}, {t_final_target_enter}, {t_final_core_enter}, {TTTarg}, {ca}, "
-            f"{t_max_vx}, {max_vx}, {TTrig}, {TtA}, {equation_a}, {pente_droite}, {r2score}, {finale_distance_to_center}, {TStop}, "
-            f"{target_position}, {total_distance_travelled}\n"
-        )
-"""
-
-
-import csv
 
 def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, timestep=0.01,
                   minimum_target_time=0.01, vy_min=200, period_min=0.01, max_final_speed=200):
@@ -889,7 +784,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"equation_a: {equation_a}, pente_droite: {pente_droite}, r2score: {r2score}")
 
         # Write results to CSV
-        with open(result_file, 'a', newline='') as csvfile:
+        with open("resume_resultats.csv", 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([
                 result_file, RT, RtTrig, t_trigger, t_trigger_computed, distance_to_trigger, 

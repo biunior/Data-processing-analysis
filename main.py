@@ -234,7 +234,12 @@ def match_rows_df(files_paths, breaks_dict):
 
 def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window):
     # Load the CSV file
-    df = pd.read_csv('resume_resultats.csv', sep=',') 
+    df = pd.read_csv('resume_resultats.csv', sep=',')
+    print("Loaded DataFrame from resume_resultats.csv:")
+    print(df.head())  # Debug: Print the first few rows
+
+    # Strip leading/trailing spaces from column names
+    df.columns = df.columns.str.strip()
 
     # Define a function to convert 'Echec' and None to NaN for numerical computation
     def to_numeric(value):
@@ -243,8 +248,22 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
         return float(value)
 
     # Apply the conversion to numeric for relevant columns
-    for column in [' tc', ' total_distance_travelled', ' ts', ' dist_final']:
-        df[column] = df[column].apply(to_numeric)
+    for column in ['tc', 'total_distance_travelled', 'ts', 'dist_final']:
+        if column in df.columns:
+            df[column] = df[column].apply(to_numeric)
+        else:
+            print(f"Warning: Column '{column}' not found in DataFrame.")
+
+    # Ensure relevant columns are numeric
+    for column in ['trigger_to_target_time', 'trigger_to_target_distance', 'target_to_stop_time', 'target_to_stop_distance']:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors='coerce')
+        else:
+            print(f"Warning: Column '{column}' not found in DataFrame.")
+
+    # Debug: Print DataFrame after processing
+    print("Processed DataFrame:")
+    print(df.head())
 
     # Extract the result_file
     files_paths = df["result_file"]
@@ -258,7 +277,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     SA_std_list = np.zeros((df.shape[0])) 
     for key in folder_indexes:
         indices = folder_indexes[key]
-        SAs_std = df[" SA"][indices].std()
+        SAs_std = df["SA"][indices].std()
         SA_std_list[indices] = SAs_std
 
     df['SA_variability'] = SA_std_list
