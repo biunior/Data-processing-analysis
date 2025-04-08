@@ -7,7 +7,7 @@ import pandas
 import pandas as pd
 from shapely import Point
 from sklearn.metrics import r2_score
-import matplotlib.pyplot as plot
+import matplotlib.pyplot as plot # test
 from math import hypot
 
 #todo : check if we need to import this because problematic
