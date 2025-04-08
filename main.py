@@ -238,7 +238,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
 
     # Define a function to convert 'Echec' and None to NaN for numerical computation
     def to_numeric(value):
-        if value in [' Echec', ' None', None]:
+        if value in ['Echec', 'None', None]:
             return float('nan')
         return float(value)
 
@@ -250,8 +250,8 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     files_paths = df["result_file"]
 
     # Compute the new columns
-    df[" SA"] = df[' tc'] * df[' total_distance_travelled']
-    df[' precision'] = df[' ts'] * df[' dist_final']
+    df["SA"] = df['trigger_to_target_time'] * df['trigger_to_target_distance']
+    df['precision'] = df['target_to_stop_time'] * df['target_to_stop_distance']
 
     folder_indexes = group_indexes_by_second_parent(files_paths)
     # construct a list with the SA_std depending on the indices for trials from the same participant
@@ -261,25 +261,22 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
         SAs_std = df[" SA"][indices].std()
         SA_std_list[indices] = SAs_std
 
-    df[' SA_variability'] = SA_std_list
+    df['SA_variability'] = SA_std_list
 
-    # Remove the 'equation_a' column
-    df.drop(' equation_a', axis=1, inplace=True)
-    df.drop(' ca', axis=1, inplace=True)
-    df.drop(' t_final_target_enter', axis=1, inplace=True)
-    df.drop(' t_trigger', axis=1, inplace=True)
-    df.drop(' t_max_vx', axis=1, inplace=True)
-    df.drop(' r2score', axis=1, inplace=True)
-    df.drop(' ta', axis=1, inplace=True)
-    df.drop(' dt', axis=1, inplace=True)
-    df.drop(' t_final_core_enter', axis=1, inplace=True)
+    # Drop unnecessary columns if they exist
+    columns_to_drop = [
+        'equation_a', 'ca', 't_final_target_enter', 't_trigger', 't_max_vx',
+        'r2score', 'ta', 'dt', 't_final_core_enter'
+    ]
+    df.drop(columns=[col for col in columns_to_drop if col in df.columns], inplace=True)
+
 
     # remove previous summary csv file
-    cwd = os.getcwd()
-    summary_csv_file = 'resume_resultats.csv'
-    summary_csv_file_path = os.path.join(cwd, summary_csv_file)
-    os.remove(summary_csv_file_path) 
-    print(f"File {summary_csv_file_path} has been deleted.")
+    #cwd = os.getcwd()
+    #summary_csv_file = 'resume_resultats.csv'
+    #summary_csv_file_path = os.path.join(cwd, summary_csv_file)
+    #os.remove(summary_csv_file_path) 
+    #print(f"File {summary_csv_file_path} has been deleted.")
 
     # add information about breaks 
     breaks_dict = explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
@@ -503,11 +500,14 @@ if __name__ == "__main__":
         subprocess.run([rename_script_path])
 
         with open('resume_resultats.csv', 'w') as fd:
-            fd.write( f"result_file, ta, t_trigger, dt, t_final_target_enter, t_final_core_enter, tc, ca, t_max_vx, max_vx, tr1, tr2, equation_a, pente_droite, r2score, dist_final, ts, target_position, total_distance_travelled\n")
+            fd.write("result_file, RT, t_trigger, RtTrig, t_trigger_computed, distance_to_trigger, "
+                     "target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, "
+                     "target_to_stop_time, target_to_stop_distance, total_movement_time, total_distance_travelled, "
+                     "total_trial_time, finale_distance_to_center, finale_distance_to_center_time, "
+                     "max_vx, t_max_vx, TtA, equation_a, pente_droite, r2score, target_position\n")
         explore_directory(data_path)
 
         # ajoute les nouvelles variables SA et precision
         modify_resume_resultats(full_data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
 
-        
-        
+
