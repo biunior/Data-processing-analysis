@@ -24,10 +24,10 @@ movement_speed_threshold = 200
 
 
 min_target_time = 0.01
-#todo adapt to import from config file
+#todo adapt to import target radius from config file
 target_radius = 80
 trial_feedback = True
-#todo to import from trial-by-trial config
+#todo import feedback from trial-by-trial config (maybe in the main?)
 #todo import screen boundaries for lost status
 screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
 #toutes les vitesses sont en pixel/sec
@@ -128,7 +128,7 @@ def end_of_movement(df: pd.DataFrame, velocity_threshold: float = 2, min_rows_fo
 #lost_status
 ####################################################
 
-# Check if the mouse touches the limits 4 different times
+# todo this is shit, have to do a real function
 def check_lost_status(df: pd.DataFrame) -> bool:
     """
     Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long.
@@ -583,7 +583,6 @@ def get_cursor_final_distance(df, v_max: float, trial_data, target_center: Point
 ##################################
 #RT movement correction
 ##################################
-#todo y'a l'air d'avoir un pb tuple/qu'est ce qui est utilisé?
 
 def get_TtA(t_trigger: float, t_max_vx):
     # TtA: Temps de réaction 2 = Temps entre le passage du trigger et l 'extremum de vitesse en X (pixel/s)
@@ -613,6 +612,7 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
 #######################################
 #initial direction of movement
 #######################################
+#todo change for instantanneous speed at 100 ms after trigger
 #prendre scalaire? de vit instantannée à 100ms après trigger?
 
 def get_initial_direction(df: pd.DataFrame, t_trigger: float, time_window: float = 0.1) -> float:
@@ -690,7 +690,7 @@ def get_trial_status(df):
         return f"Error: {e}"
 
 
-#add function to indicate if feedback is on or off
+#todo add function to indicate if feedback is on or off
 
 
 
