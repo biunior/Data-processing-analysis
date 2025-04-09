@@ -75,7 +75,7 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number):
         print(f"Analyzing trial: {trial_file}")
         compute_trial(
             result_file=trial_file.with_name(trial_file.stem + "_DF.xls"),
-            df=pandas.read_csv(trial_file, delimiter=";"), timestep=0.01, trigger=trial_data["trigger"], trial_data=trial_data, trial_number=trial_number-1, minimum_target_time=0.4) # change to -1 trial_number since we start at 1 
+            df=pandas.read_csv(trial_file, delimiter=";"), time_step=0.01, trigger=trial_data["trigger"], trial_data=trial_data, trial_number=trial_number-1, minimum_target_time=0.4) # change to -1 trial_number since we start at 1 
         print(f"Analysis successful for trial: {trial_file}")
     except Exception as e:
         print(f"Analysis failed for trial: {trial_file}")

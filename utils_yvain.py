@@ -56,7 +56,7 @@ def add_time_and_speed_to_df(df: pd.DataFrame, time_step: float = 0.01) -> pd.Da
     return df
 
 
-def add_movement_started_column(df: pd.DataFrame, vy_min: float, min_time_for_movement_start: float, timestep) -> pd.DataFrame:
+def add_movement_started_column(df: pd.DataFrame, vy_min: float, min_time_for_movement_start: float, time_step) -> pd.DataFrame:
     """
     Adds a 'movement' column to the DataFrame indicating whether movement has started or stopped.
     Movement starts when Vy >= vy_min for a minimum duration.
@@ -69,13 +69,13 @@ def add_movement_started_column(df: pd.DataFrame, vy_min: float, min_time_for_mo
     for i in range(len(df)):
         if not movement_started:
             # Check if movement starts
-            if abs(df['vy'][i:i + int(min_time_for_movement_start / timestep)]).ge(movement_speed_threshold).all():
+            if abs(df['vy'][i:i + int(min_time_for_movement_start / time_step)]).ge(movement_speed_threshold).all():
                 df.loc[i:, 'movement'] = True
                 movement_started = True
         else:
             # Check if movement stops
-            if (abs(df['vx'][i:i + int(min_time_for_movement_start / timestep)]).lt(movement_speed_threshold).all() and
-                abs(df['vy'][i:i + int(min_time_for_movement_start / timestep)]).lt(movement_speed_threshold).all()):
+            if (abs(df['vx'][i:i + int(min_time_for_movement_start / time_step)]).lt(movement_speed_threshold).all() and
+                abs(df['vy'][i:i + int(min_time_for_movement_start / time_step)]).lt(movement_speed_threshold).all()):
                 df.loc[i:, 'movement'] = False
                 break
 
@@ -169,7 +169,7 @@ def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
     return lost_status, lost_time
 
 
-def get_trial_status(df: pd.DataFrame, feedback: bool, perdu: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> str:
+def get_trial_status(df: pd.DataFrame, feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> str:
     """
     Determines the trial status based on feedback, target entry, and movement stop.
     """
@@ -194,6 +194,11 @@ def get_trial_status(df: pd.DataFrame, feedback: bool, perdu: bool, target_radiu
 ######################################
 #Reaction times
 ######################################
+#todo check, it seems shit
+import pandas as pd
+
+import pandas as pd
+
 def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
     """
     Determines the reaction time (RT) based on the start of movement.
@@ -205,7 +210,7 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
         min_rest (float): Minimum rest duration to consider a pause before movement.
 
     Returns:
-        float or str: The reaction time, or "start before beginning" if none is found.
+        float or str: The reaction time, or an error message if no valid reaction time is found.
     """
     # 1. Find the first detected movement
     movement_rows = df[df["movement"] == True]
@@ -222,7 +227,7 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
     search_df = df[(df["t"] >= 0.2) & (df["t"] < t_trigger)]
 
     if search_df.empty:
-        return None
+        return "No data between 0.2s and trigger."
 
     # Identify periods without movement
     search_df = search_df.copy()
@@ -231,11 +236,11 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
     # Look for consecutive no_movement blocks ≥ min_rest
     rest_start = None
     rest_duration = 0
-    for i in range(len(search_df)):
+    for i in range(1, len(search_df)):
         if search_df["no_movement"].iloc[i]:
             if rest_start is None:
-                rest_start = search_df["t"].iloc[i]
-            rest_duration += search_df["t"].diff().iloc[i] if i > 0 else 0
+                rest_start = search_df["t"].iloc[i]  # Start of rest
+            rest_duration += search_df["t"].iloc[i] - search_df["t"].iloc[i - 1]
         else:
             if rest_duration >= min_rest:
                 # Look for the first movement just after the rest
@@ -249,14 +254,20 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
     return "start before beginning"
 
 
+
+
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
     ser = df[df["t_crossed"] == True]['t'].head(1)
     return float(ser.iloc[0])  
 
 
+#todo make if not float, return time from first movement to trigger
 def get_RtTrig(t_trigger, RT) -> float:
-    #RtTrig (movement start to trigger)
+    # RtTrig (movement start to trigger)
+    if not isinstance(RT, float):
+        # If RT is not a float, compute time between first movement and t_trigger
+        return round(t_trigger - RT["t"].iloc[0], 3)
     return round(t_trigger - RT, 3)
 
 
@@ -361,8 +372,8 @@ def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float
     return target_enters
 
 
-#todo change to compute first time if no feedback and perdu after target enter.
-def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedback: bool, perdu: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> float | str:
+#todo check if good
+def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> float | str:
     """
     Computes the time between the trigger and the first entry into the target.
     Handles different cases based on feedback and lost status.
@@ -371,7 +382,7 @@ def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedbac
         df (pd.DataFrame): The DataFrame containing the data.
         t_trigger (float): The time when the trigger is crossed.
         feedback (bool): Whether feedback is enabled.
-        perdu (bool): Whether the trial is marked as "perdu".
+        lost_status (bool): Whether the trial is marked as "lost_status".
         target_radius (float): The radius of the target.
         min_target_time (float, optional): Minimum time in the target to consider entry valid. Defaults to 0.01.
         time_step (float, optional): Time interval between consecutive rows in the DataFrame. Defaults to 0.01.
@@ -396,7 +407,7 @@ def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedbac
 #add edga case if movement stops?
 
 
-def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, feedback: bool, perdu: bool, time_step: float = 0.01) -> float | str:
+def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, feedback: bool, lost_status: bool, time_step: float = 0.01) -> float | str:
     """
     Computes the distance traveled by the cursor from the trigger to the first entry into the target.
     Handles different cases based on feedback and lost status.
@@ -405,7 +416,7 @@ def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, fee
         df (pd.DataFrame): The DataFrame containing the data.
         t_trigger (float): The time when the trigger is crossed.
         feedback (bool): Whether feedback is enabled.
-        perdu (bool): Whether the trial is marked as "perdu".
+        lost_status (bool): Whether the trial is marked as "lost_status".
         time_step (float, optional): The time interval between consecutive rows in the DataFrame. Defaults to 0.01.
 
     Returns:
@@ -451,7 +462,7 @@ def compute_distance(df: pd.DataFrame) -> float:
 ################################################################################
 
 
-def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max: float, min_time_for_movement: float, timestep: float, feedback: bool) -> float:
+def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max: float, min_time_for_movement: float, time_step: float, feedback: bool) -> float:
     """
     Computes the time between the first target entry and the stop of the cursor, only if feedback is enabled.
 
@@ -460,7 +471,7 @@ def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max
         t_first_target_enter (float): The time of the first entry into the target.
         v_max (float): The maximum velocity to consider the cursor as stopped.
         min_time_for_movement (float): The minimum duration for which the velocity must remain below v_max to consider the movement stopped.
-        timestep (float): The time interval between consecutive rows in the DataFrame.
+        time_step (float): The time interval between consecutive rows in the DataFrame.
         feedback (bool): Whether feedback is enabled.
 
     Returns:
@@ -476,7 +487,7 @@ def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max
     df = df[df["t"] >= t_first_target_enter]
 
     # Use the end_of_movement function to determine movement stop
-    t_stop = end_of_movement(df, velocity_threshold=v_max, min_rows_for_stop=int(min_time_for_movement / timestep))
+    t_stop = end_of_movement(df, velocity_threshold=v_max, min_rows_for_stop=int(min_time_for_movement / time_step))
 
     if t_stop is not None:
         return t_stop - t_first_target_enter
@@ -486,7 +497,7 @@ def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max
     return t_end_trial - t_first_target_enter
 
 
-def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, v_max: float, min_time_for_movement: float, timestep: float, target_center: Point) -> float:
+def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, v_max: float, min_time_for_movement: float, time_step: float, target_center: Point) -> float:
     """
     Computes the traveled distance from the first target entry to the movement stop.
 
@@ -495,7 +506,7 @@ def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, v
         t_first_target_enter (float): The time of the first entry into the target.
         v_max (float): The maximum velocity to consider the cursor as stopped.
         min_time_for_movement (float): The minimum duration for which the velocity must remain below v_max to consider the movement stopped.
-        timestep (float): The time interval between consecutive rows in the DataFrame.
+        time_step (float): The time interval between consecutive rows in the DataFrame.
         target_center (Point): The center of the target circle.
 
     Returns:
@@ -505,7 +516,7 @@ def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, v
     df = df[df["t"] >= t_first_target_enter]
 
     # Calculate the number of consecutive rows required to satisfy min_time_for_movement
-    required_rows = int(min_time_for_movement / timestep)
+    required_rows = int(min_time_for_movement / time_step)
 
     # Iterate through the DataFrame to check for movement stop
     for i in range(len(df) - required_rows + 1):
@@ -693,7 +704,7 @@ def get_target_center(trial_data, trial_number):
 
 
 
-def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, timestep=0.01,
+def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, time_step=0.01,
                   minimum_target_time=0.01, vy_min=200, period_min=0.01, max_final_speed=200):
     """
     Computes trial variables and writes them to a CSV file.
@@ -704,7 +715,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         trial_data (dict): Trial-specific data.
         trigger (int): Trigger value.
         df (pd.DataFrame): DataFrame containing trial data.
-        timestep (float): Time step between rows in the DataFrame.
+        time_step (float): Time step between rows in the DataFrame.
         minimum_target_time (float): Minimum time in the target to consider entry valid.
         vy_min (float): Minimum velocity threshold for movement detection.
         period_min (float): Minimum duration for movement detection.
@@ -729,11 +740,11 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         # Add time and speed columns
         print("Adding time and speed columns")
-        df = add_time_and_speed_to_df(df, time_step=timestep)
+        df = add_time_and_speed_to_df(df, time_step=time_step)
 
         # Add movement and trigger columns
         print("Adding movement and trigger columns")
-        df = add_movement_started_column(df, vy_min=vy_min, min_time_for_movement_start=period_min, timestep=timestep)
+        df = add_movement_started_column(df, vy_min=vy_min, min_time_for_movement_start=period_min, time_step=time_step)
         df = add_trigger_crossed_column(df, trigger=trigger)
 
         # Add target-related columns
@@ -749,8 +760,8 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         # Unpack the tuple returned by check_lost_status
         lost_status, lost_time = check_lost_status(df)
 
-        # Pass only the boolean part (lost_status) to the perdu parameter
-        trial_status = get_trial_status(df, feedback=trial_feedback, perdu=lost_status, target_radius=target_radius, time_step=timestep)
+        # Pass only the boolean part (lost_status) to the lost_status parameter
+        trial_status = get_trial_status(df, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
         print(f"trial_status: {trial_status}")
 
         t_trigger = get_t_trigger(df)
@@ -768,17 +779,17 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"t_trigger_computed: {t_trigger_computed}")
         distance_to_trigger = get_trig_distance(df, t_trigger)
         print(f"distance_to_trigger: {distance_to_trigger}")
-        target_enters = get_target_enters(df, minimum_target_time, timestep)
+        target_enters = get_target_enters(df, minimum_target_time, time_step)
         print(f"target_enters: {target_enters}")
         t_first_target_enter = target_enters[0] if target_enters else None
         print(f"t_first_target_enter: {t_first_target_enter}")
-        trigger_to_target_time = get_trigger_to_first_target_time(df, t_trigger, feedback=trial_feedback, perdu=lost_status, target_radius=target_radius, min_target_time=minimum_target_time, time_step=timestep)
+        trigger_to_target_time = get_trigger_to_first_target_time(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, min_target_time=minimum_target_time, time_step=time_step)
         print(f"trigger_to_target_time: {trigger_to_target_time}")
-        trigger_to_target_distance = get_trigger_to_first_target_distance(df, t_trigger, feedback=trial_feedback, perdu=lost_status, time_step=timestep)
+        trigger_to_target_distance = get_trigger_to_first_target_distance(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, time_step=time_step)
         print(f"trigger_to_target_distance: {trigger_to_target_distance}")
-        target_to_stop_time = get_target_to_stop_time(df, t_first_target_enter, v_max=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, timestep=timestep, feedback=trial_feedback)
+        target_to_stop_time = get_target_to_stop_time(df, t_first_target_enter, v_max=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, feedback=trial_feedback)
         print(f"target_to_stop_time: {target_to_stop_time}")
-        target_to_stop_distance = get_target_to_stop_distance(df, t_first_target_enter, v_max=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, timestep=timestep, target_center=target_center)
+        target_to_stop_distance = get_target_to_stop_distance(df, t_first_target_enter, v_max=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, target_center=target_center)
         print(f"target_to_stop_distance: {target_to_stop_distance}")
         total_movement_time = get_total_movement_time(df)
         print(f"total_movement_time: {total_movement_time}")
