@@ -129,6 +129,8 @@ def end_of_movement(df: pd.DataFrame, velocity_threshold: float = 2, min_rows_fo
 ####################################################
 
 # todo this is shit, have to do a real function
+#lost possible only before first target enter? 
+
 def check_lost_status(df: pd.DataFrame) -> bool:
     """
     Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long.
@@ -158,6 +160,7 @@ def check_lost_status(df: pd.DataFrame) -> bool:
 ######################################
 #Reaction times
 ######################################
+#todo change to return None if RT< 0.2 and if there is no period of no movement (or shorter than 0.15s)?
 def get_RT(df: pd.DataFrame) -> float:
     """
     Determines the reaction time (RT) based on the start of movement.
@@ -612,8 +615,6 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
 #######################################
 #initial direction of movement
 #######################################
-#todo change for instantanneous speed at 100 ms after trigger
-#prendre scalaire? de vit instantannée à 100ms après trigger?
 
 def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1) -> float:
     """
@@ -635,11 +636,8 @@ def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1)
     avg_vy = df_window["vy"].mean()
 
     # Compute the angle of the velocity vector in degrees
-    angle = np.degrees(np.arctan2(avg_vy, avg_vx))
+    angle = np.degrees(np.arctan2(avg_vx, avg_vy))
     return angle
-#todo add angle in the csv and updated csv
-
-
 
 
 def get_target_center(trial_data, trial_number):
@@ -653,7 +651,7 @@ def get_target_center(trial_data, trial_number):
     else:
         raise Exception("Unknown target position")
 
-#todo improve
+#todo improve and add in csv
 
 def get_trial_status(df):
     try:

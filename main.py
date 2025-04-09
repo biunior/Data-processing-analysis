@@ -255,7 +255,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
             print(f"Warning: Column '{column}' not found in DataFrame.")
 
     # Ensure relevant columns are numeric
-    for column in ['trigger_to_target_time', 'trigger_to_target_distance', 'target_to_stop_time', 'target_to_stop_distance']:
+    for column in ['trigger_to_target_time', 'trigger_to_target_distance', 'target_to_stop_time', 'target_to_stop_distance', 'total_movement_time', 'total_trial_time', 'finale_distance_to_center', 'finale_distance_to_center_time', 'total_distance_travelled']:
         if column in df.columns:
             df[column] = pd.to_numeric(df[column], errors='coerce')
         else:
@@ -523,7 +523,7 @@ if __name__ == "__main__":
                      "target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, "
                      "target_to_stop_time, target_to_stop_distance, total_movement_time, total_distance_travelled, "
                      "total_trial_time, finale_distance_to_center, finale_distance_to_center_time, "
-                     "max_vx, t_max_vx, TtA, equation_a, pente_droite, r2score, target_position\n")
+                     "max_vx, t_max_vx, TtA, initial_movement_direction, target_position\n")
         explore_directory(data_path)
 
         # ajoute les nouvelles variables SA et precision
