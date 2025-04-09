@@ -519,7 +519,7 @@ if __name__ == "__main__":
         subprocess.run([rename_script_path])
 
         with open('resume_resultats.csv', 'w') as fd:
-            fd.write("result_file, RT, t_trigger, RtTrig, t_trigger_computed, distance_to_trigger, "
+            fd.write("result_file, t_trigger, RT , RtTrig, t_trigger_computed, distance_to_trigger, "
                      "target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, "
                      "target_to_stop_time, target_to_stop_distance, total_movement_time, total_distance_travelled, "
                      "total_trial_time, finale_distance_to_center, finale_distance_to_center_time, "
