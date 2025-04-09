@@ -7,7 +7,7 @@ import pandas
 import pandas as pd
 from shapely import Point
 from sklearn.metrics import r2_score
-import matplotlib.pyplot as plot # test
+import matplotlib.pyplot as plot
 from math import hypot
 import csv
 
@@ -86,13 +86,12 @@ def add_trigger_crossed_column(df: pd.DataFrame, trigger: int) -> pd.DataFrame:
     """
         Add a boolean column 't_crossed' that indicates if the trigger has been crossed yet
     """
-    # df["t_crossed"] = False
     df.loc[:, "t_crossed"] = False
     lines_below_trigger = df.loc[df["Y"] < trigger]
     if lines_below_trigger.empty:
+        print("Debug: No rows found where Y < trigger.")
         raise Exception("trigger not crossed")
     line_crossing_trigger = lines_below_trigger.index[0]
-    # df["t_crossed"][line_crossing_trigger:] = True
     df.loc[line_crossing_trigger:, "t_crossed"] = True
     return df
 
@@ -130,30 +129,66 @@ def end_of_movement(df: pd.DataFrame, velocity_threshold: float = 2, min_rows_fo
 
 # todo this is shit, have to do a real function
 #lost possible only before first target enter? 
-
-def check_lost_status(df: pd.DataFrame) -> bool:
+def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
     """
     Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long.
 
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the cursor data.
-
     Returns:
-        bool: True if the lost status condition is met, False otherwise.
+        tuple: (lost_status: bool, lost_time: float or None)
     """
     limit_crossings = ((df["X"] <= screen_limits["left"]) | 
                        (df["X"] >= screen_limits["right"]) | 
                        (df["Y"] <= screen_limits["top"]) | 
-                       (df["Y"] >= screen_limits["bottom"])).astype(int).diff().fillna(0).abs().sum()
+                       (df["Y"] >= screen_limits["bottom"])).astype(int).diff().fillna(0).abs()
+
+    total_crossings = limit_crossings.sum()
 
     time_on_limits = df[((df["X"] <= screen_limits["left"]) | 
                          (df["X"] >= screen_limits["right"]) | 
                          (df["Y"] <= screen_limits["top"]) | 
-                         (df["Y"] >= screen_limits["bottom"]))]["t"].diff().fillna(0).sum()
+                         (df["Y"] >= screen_limits["bottom"]))]
 
-    lost_status = limit_crossings >= 4 or time_on_limits > 3
-    return lost_status
+    time_on_limits_duration = time_on_limits["t"].diff().fillna(0).sum()
 
+    lost_status = total_crossings >= 4 or time_on_limits_duration > 3
+
+    # Estimer le moment de "perte"
+    lost_time = None
+    if total_crossings >= 4:
+        lost_index = limit_crossings.cumsum()[limit_crossings.cumsum() >= 4].index[0]
+        lost_time = df.loc[lost_index, "t"]
+    elif time_on_limits_duration > 3:
+        time_sum = 0
+        for i in time_on_limits.index:
+            if i == time_on_limits.index[0]:
+                continue
+            time_sum += time_on_limits.loc[i, "t"] - time_on_limits.loc[i-1, "t"]
+            if time_sum > 3:
+                lost_time = time_on_limits.loc[i, "t"]
+                break
+
+    return lost_status, lost_time
+
+
+def get_trial_status(df: pd.DataFrame, feedback: bool, perdu: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> str:
+    """
+    Determines the trial status based on feedback, target entry, and movement stop.
+    """
+    if feedback:
+        t_stop = end_of_movement(df)
+        if t_stop is None:
+            t_stop = df["t"].iloc[-1]
+        last_row = df[df["t"] == t_stop].iloc[0]
+        return "success" if last_row["in_target"] else "fail"
+    else:
+        target_enters = get_target_enters(df, min_target_time, time_step)
+        if not perdu:
+            return "success" if target_enters else "fail"
+        else:
+            lost_status, lost_time = check_lost_status(df)
+            if target_enters and lost_time is not None and target_enters[0] < lost_time:
+                return "success"
+            return "lost"
 
 
 
@@ -165,10 +200,8 @@ def get_RT(df: pd.DataFrame) -> float:
     """
     Determines the reaction time (RT) based on the start of movement.
     If RT is less than 0.2 seconds, it returns the time of movement after a period of 0.15 seconds of no movement.
-
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
-
     Returns:
         float: The reaction time (RT).
     """
@@ -189,15 +222,17 @@ def get_RT(df: pd.DataFrame) -> float:
 
     return movement_start
 
-def get_RtTrig(t_trigger, RT) -> float:
-    #RtTrig (movement start to trigger)
-    return round(t_trigger - RT, 3)
-
 
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
     ser = df[df["t_crossed"] == True]['t'].head(1)
     return float(ser.iloc[0])  
+
+
+def get_RtTrig(t_trigger, RT) -> float:
+    #RtTrig (movement start to trigger)
+    return round(t_trigger - RT, 3)
+
 
 #pourquoi ne pas juste prendre le return de la fonction d'au dessus?
 def get_TrigT(RT: float, RtTrig: float):
@@ -635,8 +670,8 @@ def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1)
     avg_vx = df_window["vx"].mean()
     avg_vy = df_window["vy"].mean()
 
-    # Compute the angle of the velocity vector in degrees
-    angle = np.degrees(np.arctan2(avg_vx, avg_vy))
+    # Compute the angle of the velocity vector in degrees (0 degree on top, 90 degrees to the right)
+    angle = np.degrees(np.arctan2(-avg_vx, -avg_vy))
     return angle
 
 
@@ -651,18 +686,6 @@ def get_target_center(trial_data, trial_number):
     else:
         raise Exception("Unknown target position")
 
-#todo improve and add in csv
-
-def get_trial_status(df):
-    try:
-        if get_target_enters(df, min_target_time) is not None:
-            return "Success"
-        elif get_target_enters(df, min_target_time) is None:
-            return "Fail"
-        else:
-            return "Unknown"
-    except Exception as e:
-        return f"Error: {e}"
 
 
 #todo add function to indicate if feedback is on or off
@@ -723,13 +746,15 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print("Computing variables")
         RT = get_RT(df)
         print(f"RT: {RT}")
+
         t_trigger = get_t_trigger(df)
         print(f"t_trigger: {t_trigger}")
         if t_trigger is None:
-            raise ValueError("t_trigger could not be computed.")
+            raise ValueError("t_trigger could not be computed.")          
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
+      
         t_trigger_computed = get_TrigT(RT, RtTrig)
         print(f"t_trigger_computed: {t_trigger_computed}")
         distance_to_trigger = get_trig_distance(df, t_trigger)
@@ -768,26 +793,32 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         initial_direction_angle = get_initial_direction(df, RT, time_window=0.1)
         print(f"initial_direction_angle: {initial_direction_angle}")
 
+        trial_status = get_trial_status(df, feedback=trial_feedback, perdu=lost_status, target_radius=target_radius, time_step=timestep)
+        print(f"trial_status: {trial_status}")
+
         # Write results to CSV
         with open('resume_resultats.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([
-                result_file, RT, RtTrig, t_trigger, t_trigger_computed, distance_to_trigger, 
+                result_file, RT, t_trigger, RtTrig, t_trigger_computed, distance_to_trigger, 
                 target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, 
                 target_to_stop_time, target_to_stop_distance, 
                 total_movement_time, total_distance_travelled, total_trial_time, 
                 finale_distance_to_center, finale_distance_to_center_time,
                 max_vx, t_max_vx, TtA,
                 initial_direction_angle, 
+                trial_status,
                 trial_data["target_positions"][trial_number],
             ])
         print(f"Trial computation completed for {result_file}")
 
     except Exception as e:
         print(f"Error processing trial {trial_number}: {e}")
-        print("Detailed error traceback:")
+        print("An error occurred. Check the log file for details.")
         import traceback
-        traceback.print_exc()
+        with open('error_log.txt', 'a') as log_file:
+            log_file.write(f"Error processing trial {trial_number}:\n")
+            traceback.print_exc(file=log_file)
         with open(result_file, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([result_file, f"Error: {e}"])

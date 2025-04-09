@@ -284,7 +284,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
 
     # Drop unnecessary columns if they exist
     columns_to_drop = [
-        'equation_a', 'ca', 't_final_target_enter', 't_trigger', 't_max_vx',
+        'equation_a', 'ca', 't_final_target_enter',
         'r2score', 'ta', 'dt', 't_final_core_enter'
     ]
     df.drop(columns=[col for col in columns_to_drop if col in df.columns], inplace=True)
@@ -523,7 +523,7 @@ if __name__ == "__main__":
                      "target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, "
                      "target_to_stop_time, target_to_stop_distance, total_movement_time, total_distance_travelled, "
                      "total_trial_time, finale_distance_to_center, finale_distance_to_center_time, "
-                     "max_vx, t_max_vx, TtA, initial_movement_direction, target_position\n")
+                     "max_vx, t_max_vx, TtA, initial_movement_direction, trial_status, target_position\n")
         explore_directory(data_path)
 
         # ajoute les nouvelles variables SA et precision
