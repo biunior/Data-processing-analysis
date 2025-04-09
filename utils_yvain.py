@@ -289,7 +289,7 @@ def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float
             if not in_target:  # New entry detected
                 # Check if the subject stays in the target for the required duration
                 if df.iloc[i:i + required_rows]["in_target"].all():
-                    target_enters.append(df.iloc[i]["t"])
+                    target_enters.append(float(df.iloc[i]["t"]))
                     in_target = True
         else:
             in_target = False  # Reset when leaving the target
@@ -297,7 +297,7 @@ def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float
     return target_enters
 
 
-
+#todo change to compute first time if no feedback and perdu after target enter.
 def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedback: bool, perdu: bool, target_radius: float, time_step: float = 0.01) -> float:
     """
     Computes the time between the trigger and the first entry into the target.
@@ -615,7 +615,7 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
 #todo change for instantanneous speed at 100 ms after trigger
 #prendre scalaire? de vit instantannée à 100ms après trigger?
 
-def get_initial_direction(df: pd.DataFrame, t_trigger: float, time_window: float = 0.1) -> float:
+def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1) -> float:
     """
     Computes the initial direction of movement based on the velocity vector within a time window after the trigger.
 
@@ -628,7 +628,7 @@ def get_initial_direction(df: pd.DataFrame, t_trigger: float, time_window: float
         float: The angle of the initial movement direction in degrees.
     """
     # Filter the DataFrame to include rows within the time window after the trigger
-    df_window = df[(df["t"] >= t_trigger) & (df["t"] <= t_trigger + time_window)]
+    df_window = df[(df["t"] >= RT) & (df["t"] <= RT + time_window)]
 
     # Compute the average velocity in x and y directions
     avg_vx = df_window["vx"].mean()
@@ -637,30 +637,7 @@ def get_initial_direction(df: pd.DataFrame, t_trigger: float, time_window: float
     # Compute the angle of the velocity vector in degrees
     angle = np.degrees(np.arctan2(avg_vy, avg_vx))
     return angle
-
-def draw_my_plot(rx, ry, regressor, df):
-    plot.scatter(df["X"], df["Y"], color='green')
-    plot.scatter(rx, ry, color='red')
-    plot.plot(rx, regressor.predict(rx), color='blue')
-    plot.title("My plot")
-    plot.xlabel('x')
-    plot.ylabel('y')
-    plot.show()
-
-
-def get_linear_regression(df: pandas.DataFrame, t_start, t_end) -> tuple:
-    regressor = LinearRegression()
-    sub_df = df[(df["t"] >= t_start) & (df["t"] <= t_end)]
-
-    rx = sub_df["X"].values.reshape(-1, 1)
-    ry = sub_df["Y"].values
-    regressor.fit(rx, ry)
-    r2score = regressor.score(rx, ry)
-    # plot = draw_my_plot(rx=rx, ry=ry, regressor=regressor, df=df)
-    # coefficient y = a*x +b   : a=regressor.coef_  b=regressor.intercept_
-    return regressor.coef_, regressor.intercept_, r2score
-
-
+#todo add angle in the csv and updated csv
 
 
 
@@ -715,8 +692,18 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"Starting computation for trial {trial_number}")
         # Initialize variables
         RT = t_trigger = RtTrig = t_trigger_computed = None
-        t_first_target_enter = t_max_vx = TtA = equation_a = pente_droite = r2score = None
-        finale_distance_to_center = finale_distance_to_center_time = total_distance_travelled = TStop = None
+        t_first_target_enter = None
+        trigger_to_target_time = None
+        trigger_to_target_distance = None
+        t_max_vx = None
+        TtA = None
+        initial_direction_angle = None
+        target_enters = None
+        target_to_stop_time = None 
+        target_to_stop_distance = None
+        total_movement_time = total_trial_time = total_distance_travelled = None
+        finale_distance_to_center = None
+        finale_distance_to_center_time = None
 
         # Add time and speed columns
         print("Adding time and speed columns")
@@ -780,8 +767,8 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         else:
             TtA = get_TtA(t_trigger, t_max_vx)
         print(f"TtA: {TtA}")
-        equation_a, pente_droite, r2score = get_linear_regression(df, t_start=RT, t_end=RT + 0.1)
-        print(f"equation_a: {equation_a}, pente_droite: {pente_droite}, r2score: {r2score}")
+        initial_direction_angle = get_initial_direction(df, RT, time_window=0.1)
+        print(f"initial_direction_angle: {initial_direction_angle}")
 
         # Write results to CSV
         with open('resume_resultats.csv', 'a', newline='') as csvfile:
@@ -793,7 +780,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 total_movement_time, total_distance_travelled, total_trial_time, 
                 finale_distance_to_center, finale_distance_to_center_time,
                 max_vx, t_max_vx, TtA,
-                equation_a, pente_droite, r2score, 
+                initial_direction_angle, 
                 trial_data["target_positions"][trial_number],
             ])
         print(f"Trial computation completed for {result_file}")
