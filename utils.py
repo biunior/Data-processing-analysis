@@ -60,7 +60,6 @@ def add_time_and_speed_to_df(df: pd.DataFrame, time_step: float = 0.01) -> pd.Da
     df.loc[0, 't'] = 0
     return df
 
-
 def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: float, min_time_for_movement_start: float, min_time_for_movement_stop: float, time_step) -> pd.DataFrame:
     """
     Adds a 'movement' column indicating whether movement is occurring.
@@ -91,9 +90,10 @@ def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: floa
             if i + start_window < len(df):
                 # Check for sustained movement in Vy
                 if (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold).all():
+                    # Movement started, mark the range as moving
                     df.loc[i:i + start_window, "movement"] = True
                     movement_started = True
-                    i += start_window  # skip ahead to avoid double detection
+                    i += 1  # Only advance one step to check for stop condition
                     continue
         else:
             if i + stop_window < len(df):
@@ -101,13 +101,15 @@ def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: floa
                 vx_ok = (df["vx"].iloc[i:i + stop_window].abs() < movement_speed_threshold).all()
                 vy_ok = (df["vy"].iloc[i:i + stop_window].abs() < movement_speed_threshold).all()
                 if vx_ok and vy_ok:
+                    # Movement stopped, mark the range as not moving
                     df.loc[i:i + stop_window, "movement"] = False
                     movement_started = False
-                    i += stop_window  # skip ahead
+                    i += 1  # Only advance one step to check for start condition
                     continue
-            df.loc[i, "movement"] = True  # still moving
+            # Keep marking as moving if movement is ongoing
+            df.loc[i, "movement"] = True  
 
-        i += 1
+        i += 1  # Move to the next row
 
     return df
 
@@ -244,7 +246,7 @@ def get_RT(df: pd.DataFrame) -> float:
     movement_rows = df[df["movement"] == True]
     if movement_rows.empty:
         print(f"[get_RT] Aucun mouvement détecté pour ce trial. df shape = {df.shape}")
-        return "No movement detected"
+        return None
     return movement_rows["t"].iloc[0]
 
 """
@@ -830,7 +832,8 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         RT = get_RT(df)
         if RT is None or isinstance(RT, str):
-            print(f"RT could not be computed. Reason: {RT}")
+            print(f"RT could not be computed. Reason: {RT}. Returning t_trigger as RT.")
+            RT = t_trigger
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
