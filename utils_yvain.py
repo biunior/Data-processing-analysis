@@ -15,7 +15,6 @@ import csv
 from errors import EndOfTrialNotInTarget
 from myenum import TargetPosition
 
-#todo rajouter target-> center target time
 
 # criteria definition 
 # beginning/end of movement
@@ -126,7 +125,7 @@ def add_trigger_crossed_column(df: pd.DataFrame, trigger: int) -> pd.DataFrame:
     df.loc[line_crossing_trigger:, "t_crossed"] = True
     return df
 
-
+#problem, speed in pixel/row? todo
 def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_rows_for_stop: int = 15) -> float:
     """
     Determines the time of movement stop based on velocity thresholds.
@@ -161,7 +160,7 @@ def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_r
 # todo check if good, but need trial_feedback
 def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
     """
-    Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long,
+    Checks if the cursor touches the screen limit or stays on the limits for too long,
     but only after the trigger is crossed.
 
     Returns:
@@ -574,7 +573,6 @@ def get_total_movement_time(df: pd.DataFrame, RT: float) -> float:
 
     return movement_stop - movement_start
 
-#todo get_total_movement_distance
 def get_total_movement_distance(df: pd.DataFrame, RT: float) -> float:
     """
     Computes the total Euclidean distance traveled by the cursor during the movement.
@@ -748,9 +746,6 @@ def get_target_center(trial_data, trial_number):
     else:
         raise Exception("Unknown target position")
 
-
-
-#todo add function to indicate if feedback is on or off
 
 
 
