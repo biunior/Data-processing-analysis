@@ -15,7 +15,7 @@ import csv
 from errors import EndOfTrialNotInTarget
 from myenum import TargetPosition
 
-#todo rajouter target-> centre
+#todo rajouter target-> center target time
 
 # criteria definition 
 # beginning/end of movement
@@ -23,15 +23,20 @@ min_time_for_movement_start = 0.2
 min_time_for_movement_stop = 0.15
 movement_speed_threshold = 200
 
-
 min_target_time = 0.01
 #todo adapt to import target radius from config file
-target_radius = 80
+#todo check if coherent with the task
+target_radius = 40
 trial_feedback = True
 #todo import feedback from trial-by-trial config (maybe in the main?)
 #todo import screen boundaries for lost status
 screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
 #toutes les vitesses sont en pixel/sec
+
+#todo add wrong direction : create a function to say if the direction is correct or not
+#first vx > 1000? in the right direction( vx pos for right target) or x > half of distance. only after trigger
+
+#todo add 
 
 def add_time_and_speed_to_df(df: pd.DataFrame, time_step: float = 0.01) -> pd.DataFrame:
     """
@@ -156,38 +161,45 @@ def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_r
 # todo check if good, but need trial_feedback
 def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
     """
-    Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long.
+    Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long,
+    but only after the trigger is crossed.
 
     Returns:
         tuple: (lost_status: bool, lost_time: float or None)
     """
-    limit_crossings = ((df["X"] <= screen_limits["left"]) | 
-                       (df["X"] >= screen_limits["right"]) | 
-                       (df["Y"] <= screen_limits["top"]) | 
-                       (df["Y"] >= screen_limits["bottom"])).astype(int).diff().fillna(0).abs()
+    # Filter the DataFrame to include only rows after the trigger is crossed
+    if "t_crossed" not in df.columns or not df["t_crossed"].any():
+        return False, None  # Trigger not crossed, no lost status
+
+    df_after_trigger = df[df["t_crossed"]]
+
+    limit_crossings = ((df_after_trigger["X"] <= screen_limits["left"]) | 
+                       (df_after_trigger["X"] >= screen_limits["right"]) | 
+                       (df_after_trigger["Y"] <= screen_limits["top"]) | 
+                       (df_after_trigger["Y"] >= screen_limits["bottom"])).astype(int).diff().fillna(0).abs()
 
     total_crossings = limit_crossings.sum()
 
-    time_on_limits = df[((df["X"] <= screen_limits["left"]) | 
-                         (df["X"] >= screen_limits["right"]) | 
-                         (df["Y"] <= screen_limits["top"]) | 
-                         (df["Y"] >= screen_limits["bottom"]))]
+    time_on_limits = df_after_trigger[((df_after_trigger["X"] <= screen_limits["left"]) | 
+                                       (df_after_trigger["X"] >= screen_limits["right"]) | 
+                                       (df_after_trigger["Y"] <= screen_limits["top"]) | 
+                                       (df_after_trigger["Y"] >= screen_limits["bottom"]))]
 
     time_on_limits_duration = time_on_limits["t"].diff().fillna(0).sum()
 
-    lost_status = total_crossings >= 4 or time_on_limits_duration > 3
+    lost_status = total_crossings >= 1 or time_on_limits_duration > 3
 
-    # Estimer le moment de "perte"
+    # Estimate the moment of "loss"
     lost_time = None
-    if total_crossings >= 4:
-        lost_index = limit_crossings.cumsum()[limit_crossings.cumsum() >= 4].index[0]
-        lost_time = df.loc[lost_index, "t"]
+    if total_crossings >= 1:
+        lost_index = limit_crossings.cumsum()[limit_crossings.cumsum() >= 1].index[0]
+        lost_time = df_after_trigger.loc[lost_index, "t"]
     elif time_on_limits_duration > 3:
         time_sum = 0
         for i in time_on_limits.index:
             if i == time_on_limits.index[0]:
                 continue
-            time_sum += time_on_limits.loc[i, "t"] - time_on_limits.loc[i-1, "t"]
+            time_sum += time_on_limits.loc[i, "t"] - time_on_limits.loc[i - 1, "t"]
             if time_sum > 3:
                 lost_time = time_on_limits.loc[i, "t"]
                 break
@@ -223,59 +235,7 @@ def get_trial_status(df: pd.DataFrame, feedback: bool, lost_status: bool, target
 #todo check, it seems shit
 
 """
-def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
-    
-    Determines the reaction time (RT) based on the start of movement.
-    If movement starts before 0.2s, check for a valid pause and restart between 0.2s and the trigger.
-    
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        t_trigger (float): The trigger time.
-        min_rest (float): Minimum rest duration to consider a pause before movement.
-
-    Returns:
-        float or str: The reaction time, or an error message if no valid reaction time is found.
-    
-    # 1. Find the first detected movement
-    movement_rows = df[df["movement"] == True]
-    if movement_rows.empty:
-        raise ValueError("No movement detected in the DataFrame.")
-    
-    movement_start = movement_rows["t"].iloc[0]
-
-    # 2. Standard case: movement starts after 0.2s → OK
-    if movement_start >= 0.2:
-        return movement_start
-
-    # 3. Special case: RT < 0.2 → look for rest + valid restart between 0.2s and the trigger
-    search_df = df[(df["t"] >= 0.2) & (df["t"] < t_trigger)]
-
-    if search_df.empty:
-        return "No data between 0.2s and trigger."
-
-    # Identify periods without movement
-    search_df = search_df.copy()
-    search_df["no_movement"] = ~search_df["movement"]
-
-    # Look for consecutive no_movement blocks ≥ min_rest
-    rest_start = None
-    rest_duration = 0
-    for i in range(1, len(search_df)):
-        if search_df["no_movement"].iloc[i]:
-            if rest_start is None:
-                rest_start = search_df["t"].iloc[i]  # Start of rest
-            rest_duration += search_df["t"].iloc[i] - search_df["t"].iloc[i - 1]
-        else:
-            if rest_duration >= min_rest:
-                # Look for the first movement just after the rest
-                after_rest_df = search_df[search_df["t"] > search_df["t"].iloc[i - 1]]
-                next_move = after_rest_df[after_rest_df["movement"] == True]
-                if not next_move.empty:
-                    return next_move["t"].iloc[0]
-            rest_start = None
-            rest_duration = 0
-
-    return "start before beginning"
+faire un RT qui ne peux juste pas etre inférieur à 0.2s?
 """
 
 def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
@@ -311,7 +271,7 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
         return "No valid movement after sufficient rest before trigger"
 
-
+#todo change to <0.2
 
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
@@ -359,7 +319,7 @@ def get_trig_distance(df: pd.DataFrame, t_trigger: float) -> float:
 #from trigger to target#
 ##################################################################
 
-
+#need to have target size
 
 ###new target definition as circle
 #on pourrait pas combiner les 2 pour pas avoir une seule fonction (pas besoin de dire TRUE ou FALSE?)
@@ -598,13 +558,12 @@ def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, m
 
 
 
-def get_total_movement_time(df: pd.DataFrame) -> float:
+def get_total_movement_time(df: pd.DataFrame, RT: float) -> float:
     """
     Computes the total duration of the movement from movement onset to movement stop.
     Movement stop is determined using the end_of_movement function.
     """
-    # Find the movement onset #todo change to take the first real movement = mettre RT?
-    movement_start = df[df["movement"] == True]["t"].iloc[0]
+    movement_start = RT if isinstance(RT, float) else df[df["movement"] == True]["t"].iloc[0]
 
     # Determine the movement stop using the end_of_movement function
     movement_stop = end_of_movement(df)
@@ -615,7 +574,42 @@ def get_total_movement_time(df: pd.DataFrame) -> float:
 
     return movement_stop - movement_start
 
-def get_total_distance(df: pd.DataFrame) -> float:
+#todo get_total_movement_distance
+def get_total_movement_distance(df: pd.DataFrame, RT: float) -> float:
+    """
+    Computes the total Euclidean distance traveled by the cursor during the movement.
+    Movement is considered from the reaction time (RT) until the movement stops or the trial ends.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame containing the data.
+        RT (float): The reaction time indicating the start of the movement.
+
+    Returns:
+        float: The total distance traveled during the movement.
+    """
+    # Filter the DataFrame to include only rows from the reaction time onward
+    df = df[df["t"] >= RT]
+
+    # Determine the time of movement stop using the end_of_movement function
+    t_stop = end_of_movement(df)
+
+    # If movement stop is detected, filter the DataFrame up to the stop time
+    if t_stop is not None:
+        df = df[df["t"] <= t_stop]
+
+    # Compute the differences between consecutive coordinates
+    diffs = df.diff()
+
+    # Compute the Euclidean distance between each pair of consecutive coordinates
+    distances = np.sqrt(diffs['X'] ** 2 + diffs['Y'] ** 2)
+
+    # Compute the sum of distances
+    return distances.sum()
+
+
+
+
+def get_total_trial_distance(df: pd.DataFrame) -> float:
     """
     Computes the total Euclidean distance traveled by the cursor until movement stops or until the end of the trial if no stop is detected.
 
@@ -652,7 +646,6 @@ def get_total_trial_time(df: pd.DataFrame) -> float:
     total_time = df["t"].iloc[-1]
     return total_time
 
-#todo add get_total_distance function?
 
 
 def compute_final_distance(x, y, target_center):
@@ -791,7 +784,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         target_enters = None
         target_to_stop_time = None 
         target_to_stop_distance = None
-        total_movement_time = total_trial_time = total_distance_travelled = None
+        total_movement_time = total_movement_distance = total_trial_time = total_distance_travelled = None
         finale_distance_to_center = None
         finale_distance_to_center_time = None
 
@@ -848,9 +841,10 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"target_to_stop_time: {target_to_stop_time}")
         target_to_stop_distance = get_target_to_stop_distance(df, t_first_target_enter, movement_speed_threshold=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, target_center=target_center)
         print(f"target_to_stop_distance: {target_to_stop_distance}")
-        total_movement_time = get_total_movement_time(df)
+        total_movement_time = get_total_movement_time(df, RT)
         print(f"total_movement_time: {total_movement_time}")
-        total_distance_travelled = get_total_distance(df)
+        total_movement_distance = get_total_movement_distance(df, RT)
+        total_distance_travelled = get_total_trial_distance(df)
         print(f"total_distance_travelled: {total_distance_travelled}")
         total_trial_time = get_total_trial_time(df)
         print(f"total_trial_time: {total_trial_time}")
@@ -878,7 +872,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 result_file, t_trigger, RT, RtTrig, t_trigger_computed, distance_to_trigger, 
                 target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, 
                 target_to_stop_time, target_to_stop_distance, 
-                total_movement_time, total_distance_travelled, total_trial_time, 
+                total_movement_time, total_movement_distance, total_distance_travelled, total_trial_time, 
                 finale_distance_to_center, finale_distance_to_center_time,
                 max_vx, t_max_vx, TtA,
                 initial_direction_angle, 

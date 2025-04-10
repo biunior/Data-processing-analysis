@@ -75,7 +75,8 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number):
         print(f"Analyzing trial: {trial_file}")
         compute_trial(
             result_file=trial_file.with_name(trial_file.stem + "_DF.xls"),
-            df=pandas.read_csv(trial_file, delimiter=";"), time_step=0.01, trigger=trial_data["trigger"], trial_data=trial_data, trial_number=trial_number-1, minimum_target_time=0.4) # change to -1 trial_number since we start at 1 
+            df=pandas.read_csv(trial_file, delimiter=";"), time_step=0.01, trigger=trial_data["trigger"], trial_data=trial_data, trial_number=trial_number-1, min_target_time=0.01) # change to -1 trial_number since we start at 1 
+        
         print(f"Analysis successful for trial: {trial_file}")
     except Exception as e:
         print(f"Analysis failed for trial: {trial_file}")
@@ -185,6 +186,10 @@ def group_indexes_by_second_parent(paths):
     folder_indexes = {}
     
     for i, path in enumerate(paths):
+        #debug
+        if not isinstance(path, str):
+            print(f"[{i}] Problème : type = {type(path)}, valeur = {path}")
+            #fin debug
         # Extract the second parent folder name from the path
         second_parent_folder = path.split('/')[1]
         
@@ -236,7 +241,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     # Load the CSV file
     df = pd.read_csv('resume_resultats.csv', sep=',')
     print("Loaded DataFrame from resume_resultats.csv:")
-    print(df.head())  # Debug: Print the first few rows
+    print(df)  # Debug: Print the first few rows
 
     # Strip leading/trailing spaces from column names
     df.columns = df.columns.str.strip()
@@ -267,7 +272,10 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
 
     # Extract the result_file
     files_paths = df['result_file']
-
+    #debug 2
+    print(df.head())
+    print(df.dtypes)
+    #fin debug 2
     # Compute the new columns
     df['SA'] = df['trigger_to_target_time'] * df['trigger_to_target_distance']
     df['precision'] = df['target_to_stop_time'] * df['target_to_stop_distance']
@@ -521,7 +529,7 @@ if __name__ == "__main__":
         with open('resume_resultats.csv', 'w') as fd:
             fd.write("result_file, t_trigger, RT , RtTrig, t_trigger_computed, distance_to_trigger, "
                      "target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, "
-                     "target_to_stop_time, target_to_stop_distance, total_movement_time, total_distance_travelled, "
+                     "target_to_stop_time, target_to_stop_distance, total_movement_time, total_movement_distance, total_distance_travelled, "
                      "total_trial_time, finale_distance_to_center, finale_distance_to_center_time, "
                      "max_vx, t_max_vx, TtA, initial_movement_direction, trial_status, target_position\n")
         explore_directory(data_path)
