@@ -15,6 +15,7 @@ import csv
 from errors import EndOfTrialNotInTarget
 from myenum import TargetPosition
 
+#todo rajouter target-> centre
 
 # criteria definition 
 # beginning/end of movement
@@ -56,28 +57,53 @@ def add_time_and_speed_to_df(df: pd.DataFrame, time_step: float = 0.01) -> pd.Da
     return df
 
 
-def add_movement_started_column(df: pd.DataFrame, vy_min: float, min_time_for_movement_start: float, time_step) -> pd.DataFrame:
+def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: float, min_time_for_movement_start: float, min_time_for_movement_stop: float, time_step) -> pd.DataFrame:
     """
-    Adds a 'movement' column to the DataFrame indicating whether movement has started or stopped.
-    Movement starts when Vy >= vy_min for a minimum duration.
-    Movement stops when both Vx and Vy are below vy_min for a minimum duration.
+    Adds a 'movement' column indicating whether movement is occurring.
+    Movement starts when |Vy| >= threshold for a minimum duration.
+    Movement stops when both |Vx| and |Vy| are below threshold for a minimum duration.
 
+    Movement can start and stop multiple times.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing 'vx' and 'vy' columns.
+        movement_speed_threshold (float): Threshold to detect movement.
+        min_time_for_movement_start (float): Duration above threshold to start movement.
+        min_time_for_movement_stop (float): Duration below threshold to stop movement.
+        time_step (float): Time step between consecutive rows.
+
+    Returns:
+        pd.DataFrame: Modified DataFrame with 'movement' column.
     """
-    df.loc[:, 'movement'] = False
+    df["movement"] = False
     movement_started = False
 
-    for i in range(len(df)):
+    start_window = int(min_time_for_movement_start / time_step)
+    stop_window = int(min_time_for_movement_stop / time_step)
+
+    i = 0
+    while i < len(df):
         if not movement_started:
-            # Check if movement starts
-            if abs(df['vy'][i:i + int(min_time_for_movement_start / time_step)]).ge(movement_speed_threshold).all():
-                df.loc[i:, 'movement'] = True
-                movement_started = True
+            if i + start_window < len(df):
+                # Check for sustained movement in Vy
+                if (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold).all():
+                    df.loc[i:i + start_window, "movement"] = True
+                    movement_started = True
+                    i += start_window  # skip ahead to avoid double detection
+                    continue
         else:
-            # Check if movement stops
-            if (abs(df['vx'][i:i + int(min_time_for_movement_start / time_step)]).lt(movement_speed_threshold).all() and
-                abs(df['vy'][i:i + int(min_time_for_movement_start / time_step)]).lt(movement_speed_threshold).all()):
-                df.loc[i:, 'movement'] = False
-                break
+            if i + stop_window < len(df):
+                # Check for sustained stop in both Vx and Vy
+                vx_ok = (df["vx"].iloc[i:i + stop_window].abs() < movement_speed_threshold).all()
+                vy_ok = (df["vy"].iloc[i:i + stop_window].abs() < movement_speed_threshold).all()
+                if vx_ok and vy_ok:
+                    df.loc[i:i + stop_window, "movement"] = False
+                    movement_started = False
+                    i += stop_window  # skip ahead
+                    continue
+            df.loc[i, "movement"] = True  # still moving
+
+        i += 1
 
     return df
 
@@ -96,7 +122,7 @@ def add_trigger_crossed_column(df: pd.DataFrame, trigger: int) -> pd.DataFrame:
     return df
 
 
-def end_of_movement(df: pd.DataFrame, velocity_threshold: float = 2, min_rows_for_stop: int = 15) -> float:
+def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_rows_for_stop: int = 15) -> float:
     """
     Determines the time of movement stop based on velocity thresholds.
     Movement stop is defined as both vx and vy being below the velocity threshold for a minimum number of rows.
@@ -104,7 +130,7 @@ def end_of_movement(df: pd.DataFrame, velocity_threshold: float = 2, min_rows_fo
 
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
-        velocity_threshold (float): The maximum velocity to consider the cursor as stopped (default: 2 pixels/row).
+        movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped (default: 2 pixels/row).
         min_rows_for_stop (int): The minimum number of consecutive rows to satisfy the stop condition (default: 15).
 
     Returns:
@@ -117,7 +143,7 @@ def end_of_movement(df: pd.DataFrame, velocity_threshold: float = 2, min_rows_fo
     # Iterate through the filtered DataFrame to find the movement stop
     for i in range(len(valid_df) - min_rows_for_stop + 1):
         sub_df = valid_df.iloc[i:i + min_rows_for_stop]
-        if (sub_df["vx"].abs() < velocity_threshold).all() and (sub_df["vy"].abs() < velocity_threshold).all():
+        if (sub_df["vx"].abs() < movement_speed_threshold).all() and (sub_df["vy"].abs() < movement_speed_threshold).all():
             return sub_df["t"].iloc[0]  # Return the time when the stop condition starts
 
     # If no movement stop is detected, return None
@@ -195,12 +221,10 @@ def get_trial_status(df: pd.DataFrame, feedback: bool, lost_status: bool, target
 #Reaction times
 ######################################
 #todo check, it seems shit
-import pandas as pd
 
-import pandas as pd
-
+"""
 def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
-    """
+    
     Determines the reaction time (RT) based on the start of movement.
     If movement starts before 0.2s, check for a valid pause and restart between 0.2s and the trigger.
     
@@ -211,7 +235,7 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
     Returns:
         float or str: The reaction time, or an error message if no valid reaction time is found.
-    """
+    
     # 1. Find the first detected movement
     movement_rows = df[df["movement"] == True]
     if movement_rows.empty:
@@ -252,7 +276,40 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
             rest_duration = 0
 
     return "start before beginning"
+"""
 
+def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
+        """
+        Determines the reaction time (RT) based on the start of movement.
+        The RT is valid only if there is a minimum rest period (no movement) of at least `min_rest` seconds before movement starts.
+        Only considers movements occurring before the trigger time.
+
+        Parameters:
+            df (pd.DataFrame): The DataFrame containing the data.
+            t_trigger (float): The trigger time.
+            min_rest (float): Minimum rest duration to consider a pause before movement.
+
+        Returns:
+            float or str: The reaction time, or an error message if no valid reaction time is found.
+        """
+        # Filter the DataFrame to include only rows before the trigger time
+        df = df[df["t"] < t_trigger]
+
+        # Identify rows where movement is detected
+        movement_rows = df[df["movement"] == True]
+        if movement_rows.empty:
+            return "No movement detected before trigger"
+
+        # Iterate through movement rows to find the first valid movement after a rest period
+        for i in range(len(movement_rows)):
+            movement_start = movement_rows["t"].iloc[i]
+
+            # Check if there is sufficient rest before the movement starts
+            rest_df = df[(df["t"] < movement_start) & (df["t"] >= movement_start - min_rest)]
+            if rest_df.empty or not rest_df["movement"].any():
+                return movement_start
+
+        return "No valid movement after sufficient rest before trigger"
 
 
 
@@ -462,15 +519,15 @@ def compute_distance(df: pd.DataFrame) -> float:
 ################################################################################
 
 
-def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max: float, min_time_for_movement: float, time_step: float, feedback: bool) -> float:
+def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, movement_speed_threshold: float, min_time_for_movement: float, time_step: float, feedback: bool) -> float:
     """
     Computes the time between the first target entry and the stop of the cursor, only if feedback is enabled.
 
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
         t_first_target_enter (float): The time of the first entry into the target.
-        v_max (float): The maximum velocity to consider the cursor as stopped.
-        min_time_for_movement (float): The minimum duration for which the velocity must remain below v_max to consider the movement stopped.
+        movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped.
+        min_time_for_movement (float): The minimum duration for which the velocity must remain below movement_speed_threshold to consider the movement stopped.
         time_step (float): The time interval between consecutive rows in the DataFrame.
         feedback (bool): Whether feedback is enabled.
 
@@ -487,7 +544,7 @@ def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max
     df = df[df["t"] >= t_first_target_enter]
 
     # Use the end_of_movement function to determine movement stop
-    t_stop = end_of_movement(df, velocity_threshold=v_max, min_rows_for_stop=int(min_time_for_movement / time_step))
+    t_stop = end_of_movement(df, movement_speed_threshold=movement_speed_threshold, min_rows_for_stop=int(min_time_for_movement / time_step))
 
     if t_stop is not None:
         return t_stop - t_first_target_enter
@@ -497,15 +554,15 @@ def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, v_max
     return t_end_trial - t_first_target_enter
 
 
-def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, v_max: float, min_time_for_movement: float, time_step: float, target_center: Point) -> float:
+def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, movement_speed_threshold: float, min_time_for_movement: float, time_step: float, target_center: Point) -> float:
     """
     Computes the traveled distance from the first target entry to the movement stop.
 
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
         t_first_target_enter (float): The time of the first entry into the target.
-        v_max (float): The maximum velocity to consider the cursor as stopped.
-        min_time_for_movement (float): The minimum duration for which the velocity must remain below v_max to consider the movement stopped.
+        movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped.
+        min_time_for_movement (float): The minimum duration for which the velocity must remain below movement_speed_threshold to consider the movement stopped.
         time_step (float): The time interval between consecutive rows in the DataFrame.
         target_center (Point): The center of the target circle.
 
@@ -521,7 +578,7 @@ def get_target_to_stop_distance(df: pd.DataFrame, t_first_target_enter: float, v
     # Iterate through the DataFrame to check for movement stop
     for i in range(len(df) - required_rows + 1):
         sub_df = df.iloc[i:i + required_rows]
-        if (sub_df["vx"].abs() <= v_max).all() and (sub_df["vy"].abs() <= v_max).all():
+        if (sub_df["vx"].abs() <= movement_speed_threshold).all() and (sub_df["vy"].abs() <= movement_speed_threshold).all():
             # Filter the DataFrame up to the stop time
             df = df[df["t"] <= sub_df["t"].iloc[0]]
             break
@@ -602,15 +659,15 @@ def compute_final_distance(x, y, target_center):
     return hypot(x - target_center[0], y - target_center[1])
 
 
-def get_cursor_final_distance(df, v_max: float, trial_data, target_center: Point):
+def get_cursor_final_distance(df, movement_speed_threshold: float, trial_data, target_center: Point):
     """
     Computes the final distance of the cursor from the target center.
-    If the cursor stops moving (velocity below v_max), the distance is computed at the end of movement.
+    If the cursor stops moving (velocity below movement_speed_threshold), the distance is computed at the end of movement.
     If the cursor never stops moving, the distance is computed at the end of the trial.
 
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
-        v_max (float): The maximum velocity to consider the cursor as stopped.
+        movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped.
         trial_data (dict): The trial data.
         target_center (Point): The center of the target circle.
 
@@ -618,7 +675,7 @@ def get_cursor_final_distance(df, v_max: float, trial_data, target_center: Point
         tuple: The final distance and the time it was computed.
     """
     # Determine the time of movement stop using the end_of_movement function
-    t_stop = end_of_movement(df, velocity_threshold=v_max)
+    t_stop = end_of_movement(df, movement_speed_threshold=movement_speed_threshold)
 
     if t_stop is not None:
         # Compute distance at the end of movement
@@ -705,7 +762,7 @@ def get_target_center(trial_data, trial_number):
 
 
 def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, time_step=0.01,
-                  minimum_target_time=0.01, vy_min=200, period_min=0.01, max_final_speed=200):
+                  min_target_time=0.01, movement_speed_threshold=200, period_min=0.01):
     """
     Computes trial variables and writes them to a CSV file.
 
@@ -716,8 +773,8 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         trigger (int): Trigger value.
         df (pd.DataFrame): DataFrame containing trial data.
         time_step (float): Time step between rows in the DataFrame.
-        minimum_target_time (float): Minimum time in the target to consider entry valid.
-        vy_min (float): Minimum velocity threshold for movement detection.
+        min_target_time (float): Minimum time in the target to consider entry valid.
+        movement_speed_threshold (float): Minimum velocity threshold for movement detection.
         period_min (float): Minimum duration for movement detection.
         max_final_speed (float): Maximum velocity to consider the cursor as stopped.
     """
@@ -744,7 +801,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         # Add movement and trigger columns
         print("Adding movement and trigger columns")
-        df = add_movement_started_column(df, vy_min=vy_min, min_time_for_movement_start=period_min, time_step=time_step)
+        df = add_movement_started_column(df, movement_speed_threshold=movement_speed_threshold, min_time_for_movement_start=min_time_for_movement_start, min_time_for_movement_stop=min_time_for_movement_stop, time_step=time_step)
         df = add_trigger_crossed_column(df, trigger=trigger)
 
         # Add target-related columns
@@ -765,12 +822,12 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"trial_status: {trial_status}")
 
         t_trigger = get_t_trigger(df)
-        print(f"t_trigger: {t_trigger}")
         if t_trigger is None:
-            raise ValueError("t_trigger could not be computed.")          
+            raise ValueError("t_trigger could not be computed. No trigger crossing detected.")
 
         RT = get_RT(df, t_trigger, min_rest=0.15)
-        print(f"RT: {RT}")
+        if RT is None or isinstance(RT, str):
+            raise ValueError(f"RT could not be computed. Reason: {RT}")
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
@@ -779,17 +836,17 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"t_trigger_computed: {t_trigger_computed}")
         distance_to_trigger = get_trig_distance(df, t_trigger)
         print(f"distance_to_trigger: {distance_to_trigger}")
-        target_enters = get_target_enters(df, minimum_target_time, time_step)
+        target_enters = get_target_enters(df, min_target_time, time_step)
         print(f"target_enters: {target_enters}")
         t_first_target_enter = target_enters[0] if target_enters else None
         print(f"t_first_target_enter: {t_first_target_enter}")
-        trigger_to_target_time = get_trigger_to_first_target_time(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, min_target_time=minimum_target_time, time_step=time_step)
+        trigger_to_target_time = get_trigger_to_first_target_time(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, min_target_time=min_target_time, time_step=time_step)
         print(f"trigger_to_target_time: {trigger_to_target_time}")
         trigger_to_target_distance = get_trigger_to_first_target_distance(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, time_step=time_step)
         print(f"trigger_to_target_distance: {trigger_to_target_distance}")
-        target_to_stop_time = get_target_to_stop_time(df, t_first_target_enter, v_max=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, feedback=trial_feedback)
+        target_to_stop_time = get_target_to_stop_time(df, t_first_target_enter, movement_speed_threshold=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, feedback=trial_feedback)
         print(f"target_to_stop_time: {target_to_stop_time}")
-        target_to_stop_distance = get_target_to_stop_distance(df, t_first_target_enter, v_max=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, target_center=target_center)
+        target_to_stop_distance = get_target_to_stop_distance(df, t_first_target_enter, movement_speed_threshold=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, target_center=target_center)
         print(f"target_to_stop_distance: {target_to_stop_distance}")
         total_movement_time = get_total_movement_time(df)
         print(f"total_movement_time: {total_movement_time}")
