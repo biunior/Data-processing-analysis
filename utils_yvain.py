@@ -231,14 +231,28 @@ def get_trial_status(df: pd.DataFrame, feedback: bool, lost_status: bool, target
 ######################################
 #Reaction times
 ######################################
-#todo check, it seems shit
+def get_RT(df: pd.DataFrame) -> float:
+    """
+    Determines the reaction time (RT) based on the first detected movement.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame containing the data with a 'movement' column.
+
+    Returns:
+        float: The reaction time, which is the time of the first detected movement.
+    """
+    movement_rows = df[df["movement"] == True]
+    if movement_rows.empty:
+        print("No movement detected in the DataFrame.")
+    return movement_rows["t"].iloc[0]
 
 """
 faire un RT qui ne peux juste pas etre inférieur à 0.2s?
-"""
+
+
 
 def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
-        """
+        
         Determines the reaction time (RT) based on the start of movement.
         The RT is valid only if there is a minimum rest period (no movement) of at least `min_rest` seconds before movement starts.
         Only considers movements occurring before the trigger time.
@@ -250,7 +264,7 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
         Returns:
             float or str: The reaction time, or an error message if no valid reaction time is found.
-        """
+        
         # Filter the DataFrame to include only rows before the trigger time
         df = df[df["t"] < t_trigger]
 
@@ -270,8 +284,8 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
         return "No valid movement after sufficient rest before trigger"
 
-#todo change to <0.2
-
+#todo change to >0.2
+"""
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
     ser = df[df["t_crossed"] == True]['t'].head(1)
@@ -640,7 +654,7 @@ def get_total_trial_time(df: pd.DataFrame) -> float:
     Computes the total duration of the trial.
     """
     if "t" not in df.columns:
-        raise ValueError("The DataFrame must contain a 't' column representing time.")
+        print("The DataFrame must contain a 't' column representing time.")
     total_time = df["t"].iloc[-1]
     return total_time
 
@@ -811,11 +825,11 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         t_trigger = get_t_trigger(df)
         if t_trigger is None:
-            raise ValueError("t_trigger could not be computed. No trigger crossing detected.")
+            print("t_trigger could not be computed. No trigger crossing detected.")
 
-        RT = get_RT(df, t_trigger, min_rest=0.15)
+        RT = get_RT(df, t_trigger, min_rest=period_min)
         if RT is None or isinstance(RT, str):
-            raise ValueError(f"RT could not be computed. Reason: {RT}")
+            print(f"RT could not be computed. Reason: {RT}")
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
@@ -852,7 +866,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         if t_max_vx == "centre":
             TtA = "centre"
         elif t_max_vx is None:
-            raise ValueError("t_max_vx could not be computed.")
+            print("t_max_vx could not be computed.")
         else:
             TtA = get_TtA(t_trigger, t_max_vx)
         print(f"TtA: {TtA}")
