@@ -6,15 +6,11 @@ from sklearn.linear_model import LinearRegression
 import pandas
 import pandas as pd
 from shapely import Point
-from shapely import Point
 from sklearn.metrics import r2_score
 import matplotlib.pyplot as plot
 from math import hypot
 import csv
-from math import hypot
-import csv
 
-#todo : check if we need to import this because problematic
 #todo : check if we need to import this because problematic
 from errors import EndOfTrialNotInTarget
 from myenum import TargetPosition
@@ -43,18 +39,18 @@ screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
 
 def add_time_and_speed_to_df(df: pd.DataFrame, time_step: float = 0.01) -> pd.DataFrame:
     """
-    Cette fonction ajoute une colonne nommée `t` au dataframe `df`, ainsi que les colonnes `vx` et `vy` représentant les vitesses en x et en y de l'objet.
-    La colonne `t` représente le temps correspondant à chaque ligne.
-    La première ligne a une valeur de t égale à 0.
-    Les autres lignes ont une valeur de t égale à la valeur de t de la ligne précédente plus `time_step`.
-    Les vitesses à la première ligne sont toujours nulle.
+    Cette fonction ajoute une colonne nomm├®e `t` au dataframe `df`, ainsi que les colonnes `vx` et `vy` repr├®sentant les vitesses en x et en y de l'objet.
+    La colonne `t` repr├®sente le temps correspondant ├á chaque ligne.
+    La premi├¿re ligne a une valeur de t ├®gale ├á 0.
+    Les autres lignes ont une valeur de t ├®gale ├á la valeur de t de la ligne pr├®c├®dente plus `time_step`.
+    Les vitesses ├á la premi├¿re ligne sont toujours nulle.
 
     Parameters:
       df (pd.DataFrame): Un dataframe pandas avec les colonnes `x` et `y`.
-      time_step (float, optional): La durée entre chaque instant représenté par une ligne du dataframe. La valeur par défaut est 0.01.
+      time_step (float, optional): La dur├®e entre chaque instant repr├®sent├® par une ligne du dataframe. La valeur par d├®faut est 0.01.
 
     Returns:
-      pd.DataFrame: Le dataframe `df` avec les colonnes supplémentaires `t`, `vx` et `vy`.
+      pd.DataFrame: Le dataframe `df` avec les colonnes suppl├®mentaires `t`, `vx` et `vy`.
     """
     df['vx'] = df['X'].diff() / time_step
     df['vy'] = df['Y'].diff() / time_step
@@ -64,54 +60,6 @@ def add_time_and_speed_to_df(df: pd.DataFrame, time_step: float = 0.01) -> pd.Da
     df.loc[0, 't'] = 0
     return df
 
-
-def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: float, min_time_for_movement_start: float, min_time_for_movement_stop: float, time_step) -> pd.DataFrame:
-    """
-    Adds a 'movement' column indicating whether movement is occurring.
-    Movement starts when |Vy| >= threshold for a minimum duration.
-    Movement stops when both |Vx| and |Vy| are below threshold for a minimum duration.
-
-    Movement can start and stop multiple times.
-
-    Parameters:
-        df (pd.DataFrame): DataFrame containing 'vx' and 'vy' columns.
-        movement_speed_threshold (float): Threshold to detect movement.
-        min_time_for_movement_start (float): Duration above threshold to start movement.
-        min_time_for_movement_stop (float): Duration below threshold to stop movement.
-        time_step (float): Time step between consecutive rows.
-
-    Returns:
-        pd.DataFrame: Modified DataFrame with 'movement' column.
-    """
-    df["movement"] = False
-    movement_started = False
-
-    start_window = int(min_time_for_movement_start / time_step)
-    stop_window = int(min_time_for_movement_stop / time_step)
-
-    i = 0
-    while i < len(df):
-        if not movement_started:
-            if i + start_window < len(df):
-                # Check for sustained movement in Vy
-                if (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold).all():
-                    df.loc[i:i + start_window, "movement"] = True
-                    movement_started = True
-                    i += start_window  # skip ahead to avoid double detection
-                    continue
-        else:
-            if i + stop_window < len(df):
-                # Check for sustained stop in both Vx and Vy
-                vx_ok = (df["vx"].iloc[i:i + stop_window].abs() < movement_speed_threshold).all()
-                vy_ok = (df["vy"].iloc[i:i + stop_window].abs() < movement_speed_threshold).all()
-                if vx_ok and vy_ok:
-                    df.loc[i:i + stop_window, "movement"] = False
-                    movement_started = False
-                    i += stop_window  # skip ahead
-                    continue
-            df.loc[i, "movement"] = True  # still moving
-
-        i += 1
 
 def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: float, min_time_for_movement_start: float, min_time_for_movement_stop: float, time_step) -> pd.DataFrame:
     """
@@ -171,7 +119,6 @@ def add_trigger_crossed_column(df: pd.DataFrame, trigger: int) -> pd.DataFrame:
     df.loc[:, "t_crossed"] = False
     lines_below_trigger = df.loc[df["Y"] < trigger]
     if lines_below_trigger.empty:
-        print("Debug: No rows found where Y < trigger.")
         print("Debug: No rows found where Y < trigger.")
         raise Exception("trigger not crossed")
     line_crossing_trigger = lines_below_trigger.index[0]
@@ -300,7 +247,7 @@ def get_RT(df: pd.DataFrame) -> float:
     return movement_rows["t"].iloc[0]
 
 """
-faire un RT qui ne peux juste pas etre inférieur à 0.2s?
+faire un RT qui ne peux juste pas etre inf├®rieur ├á 0.2s?
 
 
 
@@ -341,7 +288,6 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 """
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
-    "return the value of the line crossing the trigger"
     ser = df[df["t_crossed"] == True]['t'].head(1)
     return float(ser.iloc[0])  
 
@@ -357,65 +303,7 @@ def get_RtTrig(t_trigger, RT) -> float:
 
 #pourquoi ne pas juste prendre le return de la fonction d'au dessus?
 def get_TrigT(RT: float, RtTrig: float):
-    # Temps de réaction 1= Temps à l'arrêt + Temps D-T
-    return RT + RtTrig
-
-
-def get_trig_distance(df: pd.DataFrame, t_trigger: float) -> float:
-    """
-    Computes the total distance traveled by the cursor from the beginning of the trial to the trigger.
-    Returns:
-        float: The total distance traveled by the cursor from the beginning of the trial to the trigger.
-    """
-    # Filter the DataFrame to include only rows before the trigger time
-    df = df[df["t"] <= t_trigger]
-
-    # Compute the differences between consecutive coordinates
-    diffs = df.diff()
-
-    # Compute the Euclidean distance between each pair of consecutive coordinates
-    distances = np.sqrt(diffs['X'] ** 2 + diffs['Y'] ** 2)
-
-    # Compute the sum of distances
-    trigger_distance = distances.sum()
-
-    return trigger_distance
-
-
-##################################################################
-#from trigger to target#
-##################################################################
-
-#need to have target size
-
-###new target definition as circle
-#on pourrait pas combiner les 2 pour pas avoir une seule fonction (pas besoin de dire TRUE ou FALSE?)
-#pb target_center[0]? 
-def add_in_circle_column(df: pd.DataFrame, target_center: tuple, target_radius: float, column_name: str):
-    """
-    Adds a boolean column to the DataFrame indicating whether each point is inside the circle.
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the points.
-        target_center (tuple): The center of the circle as (x, y).
-        target_radius (float): The radius of the circle.
-        column_name (str): The name of the new column.
-    """
-    df[column_name] = df.apply(
-        lambda row: hypot(row["X"] - target_center[0], row["Y"] - target_center[1]) <= target_radius,
-        axis=1
-    )
-#todo make if not float, return time from first movement to trigger
-def get_RtTrig(t_trigger, RT) -> float:
-    # RtTrig (movement start to trigger)
-    if not isinstance(RT, float):
-        # If RT is not a float, compute time between first movement and t_trigger
-        return round(t_trigger - RT["t"].iloc[0], 3)
-    return round(t_trigger - RT, 3)
-
-
-#pourquoi ne pas juste prendre le return de la fonction d'au dessus?
-def get_TrigT(RT: float, RtTrig: float):
-    # Temps de réaction 1= Temps à l'arrêt + Temps D-T
+    # Temps de r├®action 1= Temps ├á l'arr├¬t + Temps D-T
     return RT + RtTrig
 
 
@@ -479,92 +367,7 @@ def add_in_target_column(df: pd.DataFrame, target_center: Point, target_radius: 
 
 
 
-# faire avec un critère de déscélération pour avoir un "real" temps d'entrée dans la cible?
-def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float = 0.01):
-    """
-    Returns a list of times t where the subject enters the target and stays in the target for at least `min_target_time` seconds. 
-    min_target_time is equal to 0.01s now (1 row).
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        min_target_time (float): The minimum time (in seconds) the subject must stay in the target.
-        time_step (float): The time interval between consecutive rows in the DataFrame.
-
-    Returns:
-        list: A list of times of valid target entries.
-    """
-    required_rows = int(min_target_time / time_step)
-    target_enters = []
-    in_target = False
-
-    for i in range(len(df)):
-        # Ensure the index range is valid
-        if i + required_rows - 1 >= len(df):
-            break
-
-        if df.iloc[i]["in_target"]:
-            if not in_target:  # New entry detected
-                # Check if the subject stays in the target for the required duration
-                if df.iloc[i:i + required_rows]["in_target"].all():
-                    target_enters.append(float(df.iloc[i]["t"]))
-                    in_target = True
-        else:
-            in_target = False  # Reset when leaving the target
-
-    return target_enters
-
-
-#todo check if good
-def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> float | str:
-    """
-    Computes the time between the trigger and the first entry into the target.
-    Handles different cases based on feedback and lost status.
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        t_trigger (float): The time when the trigger is crossed.
-        feedback (bool): Whether feedback is enabled.
-        lost_status (bool): Whether the trial is marked as "lost_status".
-        target_radius (float): The radius of the target.
-        min_target_time (float, optional): Minimum time in the target to consider entry valid. Defaults to 0.01.
-        time_step (float, optional): Time interval between consecutive rows in the DataFrame. Defaults to 0.01.
-
-    Returns:
-        float or str: The computed time or a status string.
-    """
-    target_enters = get_target_enters(df, min_target_time, time_step)
-
-    if not target_enters or t_trigger is None:
-        return "no target enter"
-
-    lost_status, lost_time = check_lost_status(df)
-
-    if feedback or not lost_status:
-        return target_enters[0] - t_trigger
-
-    if lost_time and target_enters[0] < lost_time:
-        return target_enters[0] - t_trigger
-
-    return "no target enter"
-#add edga case if movement stops?
-
-
-def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, feedback: bool, lost_status: bool, time_step: float = 0.01) -> float | str:
-
-def add_in_target_column(df: pd.DataFrame, target_center: Point, target_radius: float) -> pd.DataFrame:
-    """
-    Adds a column indicating whether each point is inside the target circle.
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the points.
-        target_center (Point): The center of the target circle.
-        target_radius (float): The radius of the target circle.
-    """
-    return add_in_circle_column(df=df, target_center=target_center, target_radius=target_radius, column_name="in_target")
-
-
-
-
-# faire avec un critère de déscélération pour avoir un "real" temps d'entrée dans la cible?
+# faire avec un crit├¿re de d├®sc├®l├®ration pour avoir un "real" temps d'entr├®e dans la cible?
 def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float = 0.01):
     """
     Returns a list of times t where the subject enters the target and stays in the target for at least `min_target_time` seconds. 
@@ -691,73 +494,6 @@ def compute_distance(df: pd.DataFrame) -> float:
 
 def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, movement_speed_threshold: float, min_time_for_movement: float, time_step: float, feedback: bool) -> float:
     """
-    Computes the distance traveled by the cursor from the trigger to the first entry into the target.
-    Handles different cases based on feedback and lost status.
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        t_trigger (float): The time when the trigger is crossed.
-        feedback (bool): Whether feedback is enabled.
-        lost_status (bool): Whether the trial is marked as "lost_status".
-        time_step (float, optional): The time interval between consecutive rows in the DataFrame. Defaults to 0.01.
-
-    Returns:
-        float or str: The computed distance or a status string.
-    """
-    target_enters = get_target_enters(df, min_target_time, time_step)
-
-    if not target_enters or t_trigger is None:
-        return "no target enter"
-
-    lost_status, lost_time = check_lost_status(df)
-
-    if feedback or not lost_status:
-        t_first_target_enter = target_enters[0]
-        df = df[(df["t"] >= t_trigger) & (df["t"] <= t_first_target_enter)]
-        return compute_distance(df)
-
-    if lost_time and target_enters[0] < lost_time:
-        t_first_target_enter = target_enters[0]
-        df = df[(df["t"] >= t_trigger) & (df["t"] <= t_first_target_enter)]
-        return compute_distance(df)
-
-    return "no target enter"
-
-
-def compute_distance(df: pd.DataFrame) -> float:
-    """
-    Computes the total Euclidean distance traveled based on the DataFrame.
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-
-    Returns:
-        float: The total distance traveled.
-    """
-    diffs = df.diff()
-    distances = np.sqrt(diffs['X'] ** 2 + diffs['Y'] ** 2)
-    return distances.sum()
-
-
-################################################################################
-#from target to stop#
-################################################################################
-
-
-def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, movement_speed_threshold: float, min_time_for_movement: float, time_step: float, feedback: bool) -> float:
-    """
-    Computes the time between the first target entry and the stop of the cursor, only if feedback is enabled.
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        t_first_target_enter (float): The time of the first entry into the target.
-        movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped.
-        min_time_for_movement (float): The minimum duration for which the velocity must remain below movement_speed_threshold to consider the movement stopped.
-        time_step (float): The time interval between consecutive rows in the DataFrame.
-        feedback (bool): Whether feedback is enabled.
-
-    Returns:
-        float or str: The time between the first target entry and the stop of the cursor, or a status string.
     Computes the time between the first target entry and the stop of the cursor, only if feedback is enabled.
 
     Parameters:
@@ -961,49 +697,13 @@ def get_cursor_final_distance(df, movement_speed_threshold: float, trial_data, t
 ##################################
 
 def get_TtA(t_trigger: float, t_max_vx):
-    # TtA: Temps de réaction 2 = Temps entre le passage du trigger et l 'extremum de vitesse en X (pixel/s)
-    if t_max_vx is None or t_trigger is None:
-        return "Invalid input: t_max_vx or t_trigger is None"
-    """
-    Computes the final distance of the cursor from the target center.
-    If the cursor stops moving (velocity below movement_speed_threshold), the distance is computed at the end of movement.
-    If the cursor never stops moving, the distance is computed at the end of the trial.
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped.
-        trial_data (dict): The trial data.
-        target_center (Point): The center of the target circle.
-
-    Returns:
-        tuple: The final distance and the time it was computed.
-    """
-    # Determine the time of movement stop using the end_of_movement function
-    t_stop = end_of_movement(df, movement_speed_threshold=movement_speed_threshold)
-
-    if t_stop is not None:
-        # Compute distance at the end of movement
-        stop_row = df[df["t"] == t_stop].iloc[0]
-        return compute_final_distance(stop_row["X"], stop_row["Y"], target_center), t_stop
-
-    # If no end of movement is detected, compute distance at the end of the trial
-    last_row = df.iloc[-1]
-    return compute_final_distance(last_row["X"], last_row["Y"], target_center), last_row["t"]
-
-
-##################################
-#RT movement correction
-##################################
-
-def get_TtA(t_trigger: float, t_max_vx):
-    # TtA: Temps de réaction 2 = Temps entre le passage du trigger et l 'extremum de vitesse en X (pixel/s)
+    # TtA: Temps de r├®action 2 = Temps entre le passage du trigger et l 'extremum de vitesse en X (pixel/s)
     if t_max_vx is None or t_trigger is None:
         return "Invalid input: t_max_vx or t_trigger is None"
     return t_max_vx - t_trigger
 
 
-#todo : demander à ce que Vmax soit entre Ttrig et TTrig+1s
-#todo : demander à ce que Vmax soit entre Ttrig et TTrig+1s
+#todo : demander ├á ce que Vmax soit entre Ttrig et TTrig+1s
 def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: float, t_trigger_buffer: float):
     my_df = df[df["t"] >= t_trigger + t_trigger_buffer]
     if target_position == TargetPosition.C:
@@ -1020,36 +720,6 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
         return min_vx_vx, float(min_vx["t"].iloc[0])
 
 
-
-#######################################
-#initial direction of movement
-#######################################
-
-def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1) -> float:
-    """
-    Computes the initial direction of movement based on the velocity vector within a time window after the trigger.
-
-    Parameters:
-        df (pd.DataFrame): The DataFrame containing the data.
-        t_trigger (float): The time when the trigger is crossed.
-        time_window (float, optional): The time window after the trigger to compute the direction. Defaults to 0.1.
-
-    Returns:
-        float: The angle of the initial movement direction in degrees.
-    """
-    # Filter the DataFrame to include rows within the time window after the trigger
-    df_window = df[(df["t"] >= RT) & (df["t"] <= RT + time_window)]
-
-    # Compute the average velocity in x and y directions
-    avg_vx = df_window["vx"].mean()
-    avg_vy = df_window["vy"].mean()
-
-    # Compute the angle of the velocity vector in degrees (0 degree on top, 90 degrees to the right)
-    angle = np.degrees(np.arctan2(-avg_vx, -avg_vy))
-    return angle
-
-
-def get_target_center(trial_data, trial_number):
 
 #######################################
 #initial direction of movement
@@ -1153,16 +823,6 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         trial_status = get_trial_status(df, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
         print(f"trial_status: {trial_status}")
 
-        # Compute variables
-        print("Computing variables")
-
-        # Unpack the tuple returned by check_lost_status
-        lost_status, lost_time = check_lost_status(df)
-
-        # Pass only the boolean part (lost_status) to the lost_status parameter
-        trial_status = get_trial_status(df, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
-        print(f"trial_status: {trial_status}")
-
         t_trigger = get_t_trigger(df)
         if t_trigger is None:
             print("t_trigger could not be computed. No trigger crossing detected.")
@@ -1228,38 +888,9 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 trial_status,
                 trial_data["target_positions"][trial_number],
             ])
-            TtA = get_TtA(t_trigger, t_max_vx)
-        print(f"TtA: {TtA}")
-        initial_direction_angle = get_initial_direction(df, RT, time_window=0.1)
-        print(f"initial_direction_angle: {initial_direction_angle}")
-
-
-        # Write results to CSV
-        with open('resume_resultats.csv', 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow([
-                result_file, t_trigger, RT, RtTrig, t_trigger_computed, distance_to_trigger, 
-                target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, 
-                target_to_stop_time, target_to_stop_distance, 
-                total_movement_time, total_movement_distance, total_distance_travelled, total_trial_time, 
-                finale_distance_to_center, finale_distance_to_center_time,
-                max_vx, t_max_vx, TtA,
-                initial_direction_angle, 
-                trial_status,
-                trial_data["target_positions"][trial_number],
-            ])
         print(f"Trial computation completed for {result_file}")
 
     except Exception as e:
-        print(f"Error processing trial {trial_number}: {e}")
-        print("An error occurred. Check the log file for details.")
-        import traceback
-        with open('error_log.txt', 'a') as log_file:
-            log_file.write(f"Error processing trial {trial_number}:\n")
-            traceback.print_exc(file=log_file)
-        with open(result_file, 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow([result_file, f"Error: {e}"])
         print(f"Error processing trial {trial_number}: {e}")
         print("An error occurred. Check the log file for details.")
         import traceback
