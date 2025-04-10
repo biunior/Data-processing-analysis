@@ -15,6 +15,28 @@ import csv
 from errors import EndOfTrialNotInTarget
 from myenum import TargetPosition
 
+#todo rajouter target-> center target time
+
+# criteria definition 
+# beginning/end of movement
+min_time_for_movement_start = 0.2
+min_time_for_movement_stop = 0.15
+movement_speed_threshold = 200
+
+min_target_time = 0.01
+#todo adapt to import target radius from config file
+#todo check if coherent with the task
+target_radius = 40
+trial_feedback = True
+#todo import feedback from trial-by-trial config (maybe in the main?)
+#todo import screen boundaries for lost status
+screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
+#toutes les vitesses sont en pixel/sec
+
+#todo add wrong direction : create a function to say if the direction is correct or not
+#first vx > 1000? in the right direction( vx pos for right target) or x > half of distance. only after trigger
+
+#todo add 
 
 # criteria definition 
 # beginning/end of movement
@@ -132,6 +154,15 @@ def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_r
     Movement stop is defined as both vx and vy being below the velocity threshold for a minimum number of rows.
     This condition is only checked within the last second of the trial.
 
+<<<<<<< HEAD
+=======
+def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_rows_for_stop: int = 15) -> float:
+    """
+    Determines the time of movement stop based on velocity thresholds.
+    Movement stop is defined as both vx and vy being below the velocity threshold for a minimum number of rows.
+    This condition is only checked within the last second of the trial.
+
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
         movement_speed_threshold (float): The maximum velocity to consider the cursor as stopped (default: 2 pixels/row).
@@ -160,7 +191,11 @@ def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_r
 # todo check if good, but need trial_feedback
 def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
     """
+<<<<<<< HEAD
     Checks if the cursor touches the screen limit or stays on the limits for too long,
+=======
+    Checks if the cursor crosses the screen limits multiple times or stays on the limits for too long,
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
     but only after the trigger is crossed.
 
     Returns:
@@ -231,6 +266,7 @@ def get_trial_status(df: pd.DataFrame, feedback: bool, lost_status: bool, target
 ######################################
 #Reaction times
 ######################################
+<<<<<<< HEAD
 def get_RT(df: pd.DataFrame) -> float:
     """
     Determines the reaction time (RT) based on the first detected movement.
@@ -253,6 +289,16 @@ faire un RT qui ne peux juste pas etre inférieur à 0.2s?
 
 def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
         
+=======
+#todo check, it seems shit
+
+"""
+faire un RT qui ne peux juste pas etre inférieur à 0.2s?
+"""
+
+def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float | str:
+        """
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
         Determines the reaction time (RT) based on the start of movement.
         The RT is valid only if there is a minimum rest period (no movement) of at least `min_rest` seconds before movement starts.
         Only considers movements occurring before the trigger time.
@@ -264,7 +310,11 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
         Returns:
             float or str: The reaction time, or an error message if no valid reaction time is found.
+<<<<<<< HEAD
         
+=======
+        """
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
         # Filter the DataFrame to include only rows before the trigger time
         df = df[df["t"] < t_trigger]
 
@@ -284,8 +334,13 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
         return "No valid movement after sufficient rest before trigger"
 
+<<<<<<< HEAD
 #todo change to >0.2
 """
+=======
+#todo change to <0.2
+
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
     ser = df[df["t_crossed"] == True]['t'].head(1)
@@ -587,6 +642,10 @@ def get_total_movement_time(df: pd.DataFrame, RT: float) -> float:
 
     return movement_stop - movement_start
 
+<<<<<<< HEAD
+=======
+#todo get_total_movement_distance
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
 def get_total_movement_distance(df: pd.DataFrame, RT: float) -> float:
     """
     Computes the total Euclidean distance traveled by the cursor during the movement.
@@ -654,7 +713,11 @@ def get_total_trial_time(df: pd.DataFrame) -> float:
     Computes the total duration of the trial.
     """
     if "t" not in df.columns:
+<<<<<<< HEAD
         print("The DataFrame must contain a 't' column representing time.")
+=======
+        raise ValueError("The DataFrame must contain a 't' column representing time.")
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
     total_time = df["t"].iloc[-1]
     return total_time
 
@@ -761,6 +824,7 @@ def get_target_center(trial_data, trial_number):
         raise Exception("Unknown target position")
 
 
+<<<<<<< HEAD
 
 
 def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, time_step=0.01,
@@ -768,6 +832,18 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
     """
     Computes trial variables and writes them to a CSV file.
 
+=======
+
+#todo add function to indicate if feedback is on or off
+
+
+
+def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, time_step=0.01,
+                  min_target_time=0.01, movement_speed_threshold=200, period_min=0.01):
+    """
+    Computes trial variables and writes them to a CSV file.
+
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
     Parameters:
         result_file (Path): Path to the result file.
         trial_number (int): The trial number.
@@ -825,11 +901,19 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         t_trigger = get_t_trigger(df)
         if t_trigger is None:
+<<<<<<< HEAD
             print("t_trigger could not be computed. No trigger crossing detected.")
 
         RT = get_RT(df, t_trigger, min_rest=period_min)
         if RT is None or isinstance(RT, str):
             print(f"RT could not be computed. Reason: {RT}")
+=======
+            raise ValueError("t_trigger could not be computed. No trigger crossing detected.")
+
+        RT = get_RT(df, t_trigger, min_rest=0.15)
+        if RT is None or isinstance(RT, str):
+            raise ValueError(f"RT could not be computed. Reason: {RT}")
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
@@ -866,7 +950,11 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         if t_max_vx == "centre":
             TtA = "centre"
         elif t_max_vx is None:
+<<<<<<< HEAD
             print("t_max_vx could not be computed.")
+=======
+            raise ValueError("t_max_vx could not be computed.")
+>>>>>>> a126080b9e0884d96a467b5663044dc77b2f5c2c
         else:
             TtA = get_TtA(t_trigger, t_max_vx)
         print(f"TtA: {TtA}")

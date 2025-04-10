@@ -3,6 +3,7 @@ import csv
 import pandas as pd
 import pandas
 from pathlib import Path
+from PIL import Image, ImageDraw
 
 import re
 import subprocess
@@ -335,7 +336,7 @@ def explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_in
         else:
             cond = (str(child.name).startswith("mouse_trajectory_coord_") and not str(child.name).endswith("_DF.xls"))
         if cond:
-            num_breaks, break_timing, break_position = trajectory_breaks_processing(data_path, vmin, angle_threshold, time_interval, str(child), time_thresh, spatial_thresh, angle_window)
+            num_breaks, break_timing, break_position = trajectory_breaks_processing(data_path, vmin, angle_threshold, time_interval, str(child), format_version, time_thresh, spatial_thresh, angle_window)
             breaks_dict[child] = num_breaks, break_timing, break_position        
         elif child.is_dir():
             sub_breaks_dict = explore_directory_for_trajectories(child, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
@@ -343,7 +344,15 @@ def explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_in
     return breaks_dict 
 
 
-def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, time_interval, path_trajectory, time_thresh=0.1, spatial_thresh=30, angle_window=2):
+def transform_coord2image_fname(s):
+    match = re.match(r"mouse_trajectory_coord_(\d+)", s)
+    if match:
+        number = int(match.group(1))
+        return f"mouse_trajectory_{number:03d}.png"
+    return s  # return original if pattern doesn't match
+
+
+def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, time_interval, path_trajectory, format_version, time_thresh=0.1, spatial_thresh=30, angle_window=2):
     """
     Main function to read .csv file and detect trajectory breaks.
     """
@@ -360,6 +369,30 @@ def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, 
                 print(f"Time: {t}, Average Angle: {angle_change}, Average Velocity: {velocity}, Average Position: ({x}, {y})")
                 break_timing.append(float(t))
                 break_position.append((float(x), float(y)))
+
+            # Save png with breaks visualization
+            if format_version == "new":
+                fname_coord = pathlib.Path(path_trajectory).name
+                trajectory_dir = pathlib.Path(path_trajectory).parent
+                fname_png = transform_coord2image_fname(fname_coord)
+                trajectory_png_path = trajectory_dir / fname_png
+                image = Image.open(trajectory_png_path)
+
+                draw = ImageDraw.Draw(image)
+                for x, y in break_position:
+                    r = 5
+                    draw.ellipse((x - r, y - r, x + r, y + r), fill="red", outline="red")
+                
+                marked_fname_png = f"marked_{fname_png}"
+                new_image_path = os.path.join(trajectory_dir, marked_fname_png)
+                
+                print("Debug 4")
+                image.save(new_image_path)
+                print(f"Saved marked image to: {new_image_path}")
+
+            # if format_version == "legacy": # TODO 
+            #     raise ImplementationError("Legacy format not implemented yet")
+            #     #pathlib.Path(output_path_trajectory) / "breaks.png"
         else:
             print("No trajectory breaks detected.")
                 
