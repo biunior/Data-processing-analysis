@@ -243,7 +243,8 @@ def get_RT(df: pd.DataFrame) -> float:
     """
     movement_rows = df[df["movement"] == True]
     if movement_rows.empty:
-        print("No movement detected in the DataFrame.")
+        print(f"[get_RT] Aucun mouvement détecté pour ce trial. df shape = {df.shape}")
+        return "No movement detected"
     return movement_rows["t"].iloc[0]
 
 """
