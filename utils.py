@@ -206,11 +206,11 @@ def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
     return lost_status, lost_time
 
 
-def get_trial_status(df: pd.DataFrame, feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> str:
+def get_trial_status(df: pd.DataFrame, trial_feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> str:
     """
-    Determines the trial status based on feedback, target entry, and movement stop.
+    Determines the trial status based on trial_feedback, target entry, and movement stop.
     """
-    if feedback:
+    if trial_feedback:
         t_stop = end_of_movement(df)
         if t_stop is None:
             t_stop = df["t"].iloc[-1]
@@ -404,15 +404,15 @@ def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float
 
 
 #todo check if good
-def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> float | str:
+def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, trial_feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> float | str:
     """
     Computes the time between the trigger and the first entry into the target.
-    Handles different cases based on feedback and lost status.
+    Handles different cases based on trial_feedback and lost status.
 
     Parameters:
         df (pd.DataFrame): The DataFrame containing the data.
         t_trigger (float): The time when the trigger is crossed.
-        feedback (bool): Whether feedback is enabled.
+        trial_feedback (bool): Whether trial_feedback is enabled.
         lost_status (bool): Whether the trial is marked as "lost_status".
         target_radius (float): The radius of the target.
         min_target_time (float, optional): Minimum time in the target to consider entry valid. Defaults to 0.01.
@@ -428,7 +428,7 @@ def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedbac
 
     lost_status, lost_time = check_lost_status(df)
 
-    if feedback or not lost_status:
+    if trial_feedback or not lost_status:
         return target_enters[0] - t_trigger
 
     if lost_time and target_enters[0] < lost_time:
@@ -438,7 +438,7 @@ def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, feedbac
 #add edga case if movement stops?
 
 
-def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, feedback: bool, lost_status: bool, time_step: float = 0.01) -> float | str:
+def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, trial_feedback: bool, lost_status: bool, time_step: float = 0.01) -> float | str:
     """
     Computes the distance traveled by the cursor from the trigger to the first entry into the target.
     Handles different cases based on feedback and lost status.
@@ -460,7 +460,7 @@ def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, fee
 
     lost_status, lost_time = check_lost_status(df)
 
-    if feedback or not lost_status:
+    if trial_feedback or not lost_status:
         t_first_target_enter = target_enters[0]
         df = df[(df["t"] >= t_trigger) & (df["t"] <= t_first_target_enter)]
         return compute_distance(df)
@@ -493,7 +493,7 @@ def compute_distance(df: pd.DataFrame) -> float:
 ################################################################################
 
 
-def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, movement_speed_threshold: float, min_time_for_movement: float, time_step: float, feedback: bool) -> float:
+def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, movement_speed_threshold: float, min_time_for_movement: float, time_step: float, trial_feedback: bool) -> float:
     """
     Computes the time between the first target entry and the stop of the cursor, only if feedback is enabled.
 
@@ -508,7 +508,7 @@ def get_target_to_stop_time(df: pd.DataFrame, t_first_target_enter: float, movem
     Returns:
         float or str: The time between the first target entry and the stop of the cursor, or a status string.
     """
-    if not feedback:
+    if not trial_feedback:
         return "feedback disabled"
 
     if not t_first_target_enter:
@@ -821,7 +821,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         lost_status, lost_time = check_lost_status(df)
 
         # Pass only the boolean part (lost_status) to the lost_status parameter
-        trial_status = get_trial_status(df, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
+        trial_status = get_trial_status(df, trial_feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
         print(f"trial_status: {trial_status}")
 
         t_trigger = get_t_trigger(df)
@@ -844,11 +844,11 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         print(f"target_enters: {target_enters}")
         t_first_target_enter = target_enters[0] if target_enters else None
         print(f"t_first_target_enter: {t_first_target_enter}")
-        trigger_to_target_time = get_trigger_to_first_target_time(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, min_target_time=min_target_time, time_step=time_step)
+        trigger_to_target_time = get_trigger_to_first_target_time(df, t_trigger, trial_feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, min_target_time=min_target_time, time_step=time_step)
         print(f"trigger_to_target_time: {trigger_to_target_time}")
-        trigger_to_target_distance = get_trigger_to_first_target_distance(df, t_trigger, feedback=trial_feedback, lost_status=lost_status, time_step=time_step)
+        trigger_to_target_distance = get_trigger_to_first_target_distance(df, t_trigger, trial_feedback=trial_feedback, lost_status=lost_status, time_step=time_step)
         print(f"trigger_to_target_distance: {trigger_to_target_distance}")
-        target_to_stop_time = get_target_to_stop_time(df, t_first_target_enter, movement_speed_threshold=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, feedback=trial_feedback)
+        target_to_stop_time = get_target_to_stop_time(df, t_first_target_enter, movement_speed_threshold=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, trial_feedback=trial_feedback)
         print(f"target_to_stop_time: {target_to_stop_time}")
         target_to_stop_distance = get_target_to_stop_distance(df, t_first_target_enter, movement_speed_threshold=movement_speed_threshold, min_time_for_movement=min_time_for_movement_stop, time_step=time_step, target_center=target_center)
         print(f"target_to_stop_distance: {target_to_stop_distance}")
@@ -879,6 +879,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         # Write results to CSV
         with open('resume_resultats.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
+            print(f"trial_feedback value: {trial_feedback}, type: {type(trial_feedback)}")
             writer.writerow([
                 result_file, t_trigger, RT, RtTrig, t_trigger_computed, distance_to_trigger, 
                 target_enters, t_first_target_enter, trigger_to_target_time, trigger_to_target_distance, 
@@ -887,7 +888,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 finale_distance_to_center, finale_distance_to_center_time,
                 max_vx, t_max_vx, TtA,
                 initial_direction_angle, 
-                trial_status, trial_feedback,
+                trial_status, int(trial_feedback),
                 trial_data["target_positions"][trial_number],
             ])
         print(f"Trial computation completed for {result_file}")
