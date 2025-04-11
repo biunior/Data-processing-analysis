@@ -18,7 +18,7 @@ from myenum import TargetPosition
 
 # criteria definition 
 # beginning/end of movement
-min_time_for_movement_start = 0.2
+min_time_for_movement_start = 0.15
 min_time_for_movement_stop = 0.15
 movement_speed_threshold = 200
 
@@ -87,7 +87,7 @@ def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: floa
         if not movement_started:
             if i + start_window < len(df):
                 # Check for sustained movement in Vy
-                if (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold).all():
+                if (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold-1).all():
                     # Movement started, mark the range as moving
                     df.loc[i:i + start_window, "movement"] = True
                     movement_started = True
@@ -832,6 +832,9 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         if RT is None or isinstance(RT, str):
             print(f"RT could not be computed. Reason: {RT}. Returning t_trigger as RT.")
             RT = t_trigger
+        elif RT > t_trigger:
+            print(f"RT ({RT}) is greater than t_trigger ({t_trigger}). Setting RT to t_trigger.")
+            RT = t_trigger
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
@@ -891,6 +894,8 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 trial_status, int(trial_feedback),
                 trial_data["target_positions"][trial_number],
             ])
+        
+        df.to_csv(result_file)
         print(f"Trial computation completed for {result_file}")
 
     except Exception as e:
