@@ -26,8 +26,6 @@ min_target_time = 0.01
 #todo adapt to import target radius from config file
 #todo check if coherent with the task
 target_radius = 40
-trial_feedback = True
-#todo import feedback from trial-by-trial config (maybe in the main?)
 #todo import screen boundaries for lost status
 screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
 #toutes les vitesses sont en pixel/sec
@@ -766,7 +764,7 @@ def get_target_center(trial_data, trial_number):
 
 
 
-def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, df=None, time_step=0.01,
+def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigger: int, trial_feedback: bool, df=None, time_step=0.01,
                   min_target_time=0.01, movement_speed_threshold=200, period_min=0.01):
     """
     Computes trial variables and writes them to a CSV file.
@@ -784,7 +782,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         max_final_speed (float): Maximum velocity to consider the cursor as stopped.
     """
     try:
-        print(f"Starting computation for trial {trial_number}")
+        print(f"Starting computation for trial {trial_number + 1}")
         # Initialize variables
         RT = t_trigger = RtTrig = t_trigger_computed = None
         t_first_target_enter = None
@@ -889,7 +887,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 finale_distance_to_center, finale_distance_to_center_time,
                 max_vx, t_max_vx, TtA,
                 initial_direction_angle, 
-                trial_status,
+                trial_status, trial_feedback,
                 trial_data["target_positions"][trial_number],
             ])
         print(f"Trial computation completed for {result_file}")
