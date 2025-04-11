@@ -73,40 +73,41 @@ def explore_directory_for_copy(path):
 import pandas as pd
 import pathlib
 #todo check why indexation is still wrong
-def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feedback=bool):
+def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feedback=None):
     try:
         print(f"Analyzing trial: {trial_file}")
 
-        # Compute trial data as before
+        # Étape 1 : lire le config AVANT compute_trial
+        parent_folder = trial_file.parent
+        config_file = parent_folder / "trial_by_trial_config.csv"
+        config_df = pd.read_csv(config_file)
+        print(f"trial_number: {trial_number}, accessing row: {trial_number-1}")
+        # DEBUG: Check trial_number and config_df size
+        print(f"Config DataFrame shape: {config_df.shape}")
+        print(f"Trial {trial_number}: Attempting to access row {trial_number-1}")
+        trial_feedback = config_df.iloc[trial_number-2, 1]
+        trial_feedback = trial_feedback == 1
+        print(f"Trial {trial_number}: trial_feedback = {trial_feedback}")
+        
+        # Ensuite seulement : appel de compute_trial
         compute_trial(
             result_file=trial_file.with_name(trial_file.stem + "_DF.xls"),
             df=pd.read_csv(trial_file, delimiter=";"), 
             time_step=0.01, 
             trigger=trial_data["trigger"], 
             trial_data=trial_data, 
-            trial_number=trial_number,  # Adjust trial number as per your requirement
+            trial_number=trial_number - 1,
             min_target_time=0.01,
             trial_feedback=trial_feedback
         )
-        
-        # Step 1: Get the parent folder of the _DF.xls file
-        parent_folder = trial_file.parent
-        
-        # Step 2: Load the trial_by_trial_config.csv file from the parent directory
-        config_file = parent_folder / "trial_by_trial_config.csv"
-        config_df = pd.read_csv(config_file)
-        
-        # Step 3: Extract the 'trial_feedback' value for the current trial
-        trial_feedback = config_df.iloc[trial_number - 1, 1]  # Second column (index 1) contains trial_feedback
-        
-        # Step 4: Check if the trial_feedback is 1 (True)
-        if trial_feedback == 1:
+
+        if trial_feedback:
             print(f"Trial {trial_number} has feedback enabled.")
         else:
             print(f"Trial {trial_number} has feedback disabled.")
         
         print(f"Analysis successful for trial: {trial_file}")
-        
+
     except Exception as e:
         print(f"Analysis failed for trial: {trial_file}")
         print(e)
@@ -221,6 +222,7 @@ def explore_directory(path: pathlib.Path):
                 trial_data = get_trial_data(child)
                 if trial_data:
                     analyse_trial(trial_file=child, trial_data=trial_data, trial_number=trial_number)
+                    print(f"Filename: {child.name}, extracted trial_number: {trial_number}")
             except Exception as e:
                 print(e)
 

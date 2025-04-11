@@ -782,7 +782,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         max_final_speed (float): Maximum velocity to consider the cursor as stopped.
     """
     try:
-        print(f"Starting computation for trial {trial_number + 1}")
+        print(f"Starting computation for trial {trial_number}")
         # Initialize variables
         RT = t_trigger = RtTrig = t_trigger_computed = None
         t_first_target_enter = None
@@ -903,3 +903,4 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         with open(result_file, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([result_file, f"Error: {e}"])
+
