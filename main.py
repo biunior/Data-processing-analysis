@@ -3,6 +3,7 @@ import csv
 import pandas as pd
 import pandas
 from pathlib import Path
+from PIL import Image, ImageDraw
 
 import re
 import subprocess
@@ -116,8 +117,8 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number):
         compute_trial(
             result_file=trial_file.with_name(trial_file.stem + "_DF.xls"),
             df=pandas.read_csv(trial_file, delimiter=";"), time_step=0.01, trigger=trial_data["trigger"], trial_data=trial_data, trial_number=trial_number-1, min_target_time=0.01) # change to -1 trial_number since we start at 1 
-        
         print(f"Analysis successful for trial: {trial_file}")
+
     except Exception as e:
         print(f"Analysis failed for trial: {trial_file}")
         print(e)
@@ -218,6 +219,7 @@ def explore_directory(path: pathlib.Path):
                 if trial_data:
                     analyse_trial(trial_file=child, trial_data=trial_data, trial_number=trial_number)
                     print(f"Filename: {child.name}, extracted trial_number: {trial_number}")
+
             except Exception as e:
                 print(e)
 
@@ -283,7 +285,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     df = pd.read_csv('resume_resultats.csv', sep=',')
     print("Loaded DataFrame from resume_resultats.csv:")
     print(df)  # Debug: Print the first few rows
-
+ 
     # Strip leading/trailing spaces from column names
     df.columns = df.columns.str.strip()
 
@@ -347,7 +349,9 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     #print(f"File {summary_csv_file_path} has been deleted.")
 
     # add information about breaks 
-    breaks_dict = explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
+
+    trigger_time_df = df[["result_file", "t_trigger"]] # to exclude the breaks before the trigger is passed
+    breaks_dict = explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window, trigger_time_df)
     
     # function returns the elements of the dictionary in the order of the rows in the dataframe
     num_breaks_arr, break_timing_arr, break_position_arr = match_rows_df(files_paths, breaks_dict)
@@ -360,7 +364,8 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     print("Updated csv has been saved")
 
 
-def explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window):
+
+def explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window, trigger_time_df):
     """
     Returns a dict with key the subdirectory of the trajectory and value 
     """
@@ -376,22 +381,55 @@ def explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_in
         else:
             cond = (str(child.name).startswith("mouse_trajectory_coord_") and not str(child.name).endswith("_DF.xls"))
         if cond:
-            num_breaks, break_timing, break_position = trajectory_breaks_processing(data_path, vmin, angle_threshold, time_interval, str(child), time_thresh, spatial_thresh, angle_window)
+            num_breaks, break_timing, break_position = trajectory_breaks_processing(data_path, vmin, angle_threshold, time_interval, str(child), format_version, time_thresh, spatial_thresh, angle_window, trigger_time_df)
             breaks_dict[child] = num_breaks, break_timing, break_position        
         elif child.is_dir():
-            sub_breaks_dict = explore_directory_for_trajectories(child, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
+            sub_breaks_dict = explore_directory_for_trajectories(child, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window, trigger_time_df)
             breaks_dict.update(sub_breaks_dict) 
     return breaks_dict 
 
 
-def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, time_interval, path_trajectory, time_thresh=0.1, spatial_thresh=30, angle_window=2):
+def transform_coord2image_fname(s):
+    match = re.match(r"mouse_trajectory_coord_(\d+)", s)
+    if match:
+        number = int(match.group(1))
+        return f"mouse_trajectory_{number:03d}.png"
+    return s  # return original if pattern doesn't match
+
+
+def convert_to_DF_fname(filename):
+    # Extract the 3-digit number using regex
+    match = re.search(r'_(\d{3})\.csv$', filename)
+    if not match:
+        raise ValueError("Filename must end with a 3-digit number followed by .csv")
+    
+    num_str = match.group(1)
+    num_int = int(num_str)  # Remove leading zeros
+
+    # Create new filename
+    new_filename = f"mouse_trajectory_coord-trial{num_int}_DF.xls"
+    return new_filename
+
+
+def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, time_interval, path_trajectory, format_version, time_thresh=0.1, spatial_thresh=30, angle_window=2, trigger_time_df=None):
     """
     Main function to read .csv file and detect trajectory breaks.
     """
-    try:
+    try:        
+        # get only the filename of path trajectory 
+        path_trajectory = pathlib.Path(path_trajectory)
+        output_dir = path_trajectory.parent.parent.name
+        main_output_dir = path_trajectory.parent.parent.parent.name
+        trajectory_fname = path_trajectory.name
+        result_key_fname = convert_to_DF_fname(str(trajectory_fname))
+        result_key_path = pathlib.Path(main_output_dir) / output_dir / result_key_fname
+
+        print(trigger_time_df)
+        time_2_trigger = trigger_time_df.loc[trigger_time_df['result_file'] == str(result_key_path), 't_trigger'].values[0]
+    
         data = pd.read_csv(path_trajectory, sep=';')
         data['Time'] = generate_timestamps(data, time_interval)
-        breaks = detect_trajectory_breaks(data, vmin, angle_threshold, time_thresh, spatial_thresh, output_trajectory_path, angle_window)
+        breaks = detect_trajectory_breaks(data, vmin, angle_threshold, time_thresh, spatial_thresh, output_trajectory_path, angle_window, time_2_trigger) 
         break_timing = []
         break_position = []
 
@@ -401,6 +439,29 @@ def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, 
                 print(f"Time: {t}, Average Angle: {angle_change}, Average Velocity: {velocity}, Average Position: ({x}, {y})")
                 break_timing.append(float(t))
                 break_position.append((float(x), float(y)))
+
+            # Save png with breaks visualization
+            if format_version == "new":
+                fname_coord = pathlib.Path(path_trajectory).name
+                trajectory_dir = pathlib.Path(path_trajectory).parent
+                fname_png = transform_coord2image_fname(fname_coord)
+                trajectory_png_path = trajectory_dir / fname_png
+                image = Image.open(trajectory_png_path)
+
+                draw = ImageDraw.Draw(image)
+                for x, y in break_position:
+                    r = 5
+                    draw.ellipse((x - r, y - r, x + r, y + r), fill="red", outline="red")
+                
+                marked_fname_png = f"marked_{fname_png}"
+                new_image_path = os.path.join(trajectory_dir, marked_fname_png)
+                
+                image.save(new_image_path)
+                print(f"Saved marked image to: {new_image_path}")
+
+            # if format_version == "legacy": # TODO 
+            #     raise ImplementationError("Legacy format not implemented yet")
+            #     #pathlib.Path(output_path_trajectory) / "breaks.png"
         else:
             print("No trajectory breaks detected.")
                 
@@ -478,7 +539,7 @@ def generate_timestamps(data, time_interval):
     return timestamps
 
 
-def detect_trajectory_breaks(data, vmin, angle_threshold, time_threshold, spatial_threshold, output_trajectory_path, angle_window):
+def detect_trajectory_breaks(data, vmin, angle_threshold, time_threshold, spatial_threshold, output_trajectory_path, angle_window, time_2_trigger): 
     """
     Detect trajectory breaks based on velocity and angle change threshold,
     and average multiple breaks within a specified time window.
@@ -508,7 +569,7 @@ def detect_trajectory_breaks(data, vmin, angle_threshold, time_threshold, spatia
                 dy = breaks[-1][4] - prev_values[-2][1]
                 dist_prev_break = np.sqrt(dx**2 + dy**2)
             
-            if velocity > vmin and not is_mouse_in_target(output_trajectory_path, prev_values[-1][0], prev_values[-1][1]):
+            if velocity > vmin and not is_mouse_in_target(output_trajectory_path, prev_values[-1][0], prev_values[-1][1]) and row['Time'] > time_2_trigger: 
                 angle = calculate_angle(v1, v2)
                 if angle > angle_threshold:
                     if breaks and breaks[-1][0] + time_threshold < prev_values[-1][2] and dist_prev_break > spatial_threshold:
@@ -516,8 +577,8 @@ def detect_trajectory_breaks(data, vmin, angle_threshold, time_threshold, spatia
                     elif not breaks: 
                        breaks.append((prev_values[-1][2], angle, velocity, prev_values[angle_window][0], prev_values[angle_window][1]))
             else:
-                # consider the case when the mouse leaves the screen basically when the y is negative or outisde of the x frame
-                if prev_values[-1][0] < 0 or prev_values[-1][1] < 0: # Add the right x limit (based on the sarting point x coordinate * 2) TODO (maybe not necessary if using a single screen)
+                # consider the case when the mouse leaves the screen basically when the y is negative or outside of the x frame
+                if prev_values[-1][0] < 0 or prev_values[-1][1] < 0: # Add the right x limit (based on the sarting point x coordinate * 2) NOTE: (not necessary if using a single screen)
                     if breaks and breaks[-1][0] + time_threshold < prev_values[-1][2] and dist_prev_break > spatial_threshold:
                         breaks.append((prev_values[-1][2], angle, velocity, prev_values[angle_window][0], prev_values[angle_window][1]))
         prev_values.popleft()
@@ -577,5 +638,3 @@ if __name__ == "__main__":
 
         # ajoute les nouvelles variables SA et precision
         modify_resume_resultats(full_data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
-
-

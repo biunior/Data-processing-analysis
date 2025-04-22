@@ -1,0 +1,8 @@
+Output/
+Output_OG/
+data/
+__pycache__/
+.DS_Store
+Example_breaks/
+error_log.txt
+resume_resultats.csv

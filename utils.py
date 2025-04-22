@@ -26,7 +26,6 @@ min_target_time = 0.01
 #todo adapt to import target radius from config file
 #todo check if coherent with the task
 target_radius = 40
-#todo import screen boundaries for lost status
 screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
 #toutes les vitesses sont en pixel/sec
 
@@ -711,7 +710,6 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
     my_df = df[df["t"] >= t_trigger + t_trigger_buffer]
     if my_df.empty:
         return None, None
-
     if target_position == TargetPosition.C:
         return "centre", "centre"
 
@@ -769,7 +767,6 @@ def get_target_center(trial_data, trial_number):
         return trial_data["centre_cible_droite"]
     else:
         raise Exception("Unknown target position")
-
 
 
 
@@ -831,7 +828,6 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         # Pass only the boolean part (lost_status) to the lost_status parameter
         trial_status = get_trial_status(df, trial_feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
-        print(f"trial_status: {trial_status}")
 
         t_trigger = get_t_trigger(df)
         if t_trigger is None:
@@ -906,6 +902,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
             ])
         
         df.to_csv(result_file)
+
         print(f"Trial computation completed for {result_file}")
 
     except Exception as e:
@@ -918,4 +915,3 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         with open(result_file, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([result_file, f"Error: {e}"])
-
