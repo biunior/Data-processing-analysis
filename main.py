@@ -71,8 +71,6 @@ def explore_directory_for_copy(path):
             explore_directory_for_copy(child)
 
 
-import pandas as pd
-import pathlib
 def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feedback=None):
     try:
         print(f"Analyzing trial: {trial_file}")
@@ -80,7 +78,7 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feed
         # Étape 1 : lire le config AVANT compute_trial
         parent_folder = trial_file.parent
         config_file = parent_folder / "trial_by_trial_config.csv"
-        config_df = pd.read_csv(config_file)
+        config_df = pd.read_csv(config_file, header=None)
         print(f"Config DataFrame shape: {config_df.shape}")
         trial_feedback = config_df.iloc[trial_number-2, 1]
         trial_feedback = trial_feedback == 1
@@ -315,10 +313,9 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
 
     # Extract the result_file
     files_paths = df['result_file']
-    #debug 2
     print(df.head())
     print(df.dtypes)
-    #fin debug 2
+
     # Compute the new columns
     df['SA'] = df['trigger_to_target_time'] * df['trigger_to_target_distance']
     df['precision'] = df['target_to_stop_time'] * df['target_to_stop_distance']
@@ -342,14 +339,13 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
 
 
     # remove previous summary csv file
-    #cwd = os.getcwd()
-    #summary_csv_file = 'resume_resultats.csv'
-    #summary_csv_file_path = os.path.join(cwd, summary_csv_file)
-    #os.remove(summary_csv_file_path) 
-    #print(f"File {summary_csv_file_path} has been deleted.")
+    cwd = os.getcwd()
+    summary_csv_file = 'resume_resultats.csv'
+    summary_csv_file_path = os.path.join(cwd, summary_csv_file)
+    os.remove(summary_csv_file_path) 
+    print(f"File {summary_csv_file_path} has been deleted.")
 
     # add information about breaks 
-
     trigger_time_df = df[["result_file", "t_trigger"]] # to exclude the breaks before the trigger is passed
     breaks_dict = explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window, trigger_time_df)
     
@@ -360,9 +356,9 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     df['break_positions'] = break_position_arr
 
     # Save the updated DataFrame to a new CSV file
-    df.to_csv('updated_resume_resultats.csv', index=False)
+    updated_csv_path = os.path.join(data_path, 'updated_resume_resultats.csv')
+    df.to_csv(updated_csv_path, index=False)
     print("Updated csv has been saved")
-
 
 
 def explore_directory_for_trajectories(data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window, trigger_time_df):
@@ -418,13 +414,10 @@ def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, 
     try:        
         # get only the filename of path trajectory 
         path_trajectory = pathlib.Path(path_trajectory)
-        output_dir = path_trajectory.parent.parent.name
-        main_output_dir = path_trajectory.parent.parent.parent.name
         trajectory_fname = path_trajectory.name
         result_key_fname = convert_to_DF_fname(str(trajectory_fname))
-        result_key_path = pathlib.Path(main_output_dir) / output_dir / result_key_fname
+        result_key_path = pathlib.Path(output_trajectory_path).parent / result_key_fname
 
-        print(trigger_time_df)
         time_2_trigger = trigger_time_df.loc[trigger_time_df['result_file'] == str(result_key_path), 't_trigger'].values[0]
     
         data = pd.read_csv(path_trajectory, sep=';')
@@ -556,6 +549,7 @@ def detect_trajectory_breaks(data, vmin, angle_threshold, time_threshold, spatia
 
         prev_values.append((row['X'], row['Y'], row['Time']))
 
+        # TODO of ignoring the break inside of the targets 
         if prev_values[0][0] is not None and prev_values[0][1] is not None:
             v1 = np.array([prev_values[angle_window][0] - prev_values[0][0], prev_values[angle_window][1] - prev_values[0][1]])
             v2 = np.array([prev_values[-1][0] - prev_values[angle_window][0], prev_values[-1][1] - prev_values[angle_window][1]])
@@ -611,22 +605,30 @@ if __name__ == "__main__":
         spatial_thresh = 10
         angle_window = 2
         
-        explore_directory_for_copy(data_path)
+        data_path_abs = pathlib.Path(os.path.abspath(data_path))        
+        explore_directory_for_copy(data_path_abs)
+        print("data_path_abs", data_path_abs)
 
-        # Rename and move the trajectory coordinate files to the subject's folder
-        cwd = os.getcwd()
-        rename_script = 'rename_csv_total.sh'
-        # Append the filename to the cwd to get the full path
-        rename_script_path = os.path.join(cwd, rename_script)
-        full_data_path = os.path.join(cwd, data_path)
-        # Read the current permissions
-        current_permissions = os.stat(rename_script_path).st_mode
-        # Add the executable bit for the owner, group, and others
-        new_permissions = current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-        # Change the mode of the file to make it executable
-        os.chmod(rename_script_path, new_permissions)
+        script_dir = Path(__file__).resolve().parent
+        os.chdir(script_dir)
+
+       # Rename and move the trajectory coordinate files to the subject's folder
+        second_cwd = os.getcwd()     
+
+        # rename_script = 'rename_csv_total.sh'
+        # rename_script_path = os.path.join(second_cwd, rename_script)
+        # full_data_path = os.path.join(second_cwd, data_path)
+
+        # # Read the current permissions
+        # current_permissions = os.stat(rename_script_path).st_mode
+        # # Add the executable bit for the owner, group, and others
+        # new_permissions = current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+        # # Change the mode of the file to make it executable
+        # os.chmod(rename_script_path, new_permissions)
         # Call the shell script
-        subprocess.run([rename_script_path])
+        # subprocess.run([rename_script_path])
+        subprocess.run(["python3", "rename_csv_total.py", data_path_abs])
+
 
         with open('resume_resultats.csv', 'w') as fd:
             fd.write("result_file, t_trigger, RT , RtTrig, t_trigger_computed, distance_to_trigger, "
@@ -634,7 +636,7 @@ if __name__ == "__main__":
                      "target_to_stop_time, target_to_stop_distance, total_movement_time, total_movement_distance, total_distance_travelled, "
                      "total_trial_time, finale_distance_to_center, finale_distance_to_center_time, "
                      "max_vx, t_max_vx, TtA, initial_movement_direction, trial_status, trial_feedback, target_position\n")
-        explore_directory(data_path)
+        explore_directory(data_path_abs)
 
         # ajoute les nouvelles variables SA et precision
-        modify_resume_resultats(full_data_path, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
+        modify_resume_resultats(data_path_abs, vmin, angle_threshold, time_interval, time_thresh, spatial_thresh, angle_window)
