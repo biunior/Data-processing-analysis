@@ -72,7 +72,6 @@ def explore_directory_for_copy(path):
 
 import pandas as pd
 import pathlib
-#todo check why indexation is still wrong
 def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feedback=None):
     try:
         print(f"Analyzing trial: {trial_file}")
@@ -81,13 +80,9 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feed
         parent_folder = trial_file.parent
         config_file = parent_folder / "trial_by_trial_config.csv"
         config_df = pd.read_csv(config_file)
-        print(f"trial_number: {trial_number}, accessing row: {trial_number-1}")
-        # DEBUG: Check trial_number and config_df size
         print(f"Config DataFrame shape: {config_df.shape}")
-        print(f"Trial {trial_number}: Attempting to access row {trial_number-1}")
         trial_feedback = config_df.iloc[trial_number-2, 1]
         trial_feedback = trial_feedback == 1
-        print(f"Trial {trial_number}: trial_feedback = {trial_feedback}")
         
         # Ensuite seulement : appel de compute_trial
         compute_trial(

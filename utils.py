@@ -287,6 +287,8 @@ def get_RT(df: pd.DataFrame, t_trigger: float, min_rest: float = 0.15) -> float 
 
 #todo change to >0.2
 """
+
+
 def get_t_trigger(df):
     "return the value of the line crossing the trigger"
     ser = df[df["t_crossed"] == True]['t'].head(1)
@@ -707,16 +709,23 @@ def get_TtA(t_trigger: float, t_max_vx):
 #todo : demander ├á ce que Vmax soit entre Ttrig et TTrig+1s
 def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: float, t_trigger_buffer: float):
     my_df = df[df["t"] >= t_trigger + t_trigger_buffer]
+    if my_df.empty:
+        return None, None
+
     if target_position == TargetPosition.C:
         return "centre", "centre"
 
     if target_position == TargetPosition.D:
-        max_vx = my_df[my_df["vx"] == my_df["vx"].max()].head(1)
+        max_vx = my_df[my_df["vx"] == my_df["vx"].max()]
+        if max_vx.empty:
+            return None, None
         max_vx_vx = float(max_vx["vx"].iloc[0])
         return max_vx_vx, float(max_vx["t"].iloc[0])
 
     if target_position == TargetPosition.G:
-        min_vx = my_df[my_df["vx"] == my_df["vx"].min()].head(1)
+        min_vx = my_df[my_df["vx"] == my_df["vx"].min()]
+        if min_vx.empty:
+            return None, None
         min_vx_vx = float(min_vx["vx"].iloc[0])
         return min_vx_vx, float(min_vx["t"].iloc[0])
 
@@ -872,6 +881,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
             TtA = "centre"
         elif t_max_vx is None:
             print("t_max_vx could not be computed.")
+            TtA = None
         else:
             TtA = get_TtA(t_trigger, t_max_vx)
         print(f"TtA: {TtA}")
