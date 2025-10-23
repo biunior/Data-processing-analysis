@@ -10,6 +10,7 @@ from sklearn.metrics import r2_score
 import matplotlib.pyplot as plot
 from math import hypot
 import csv
+from typing import Tuple, Union
 
 #todo : check if we need to import this because problematic
 from errors import EndOfTrialNotInTarget
@@ -26,7 +27,6 @@ min_target_time = 0.01
 #todo adapt to import target radius from config file
 #todo check if coherent with the task
 target_radius = 40
-#todo import screen boundaries for lost status
 screen_limits = {"left": 0, "right": 1680, "top": 0, "bottom": 1050}
 #toutes les vitesses sont en pixel/sec
 
@@ -86,8 +86,10 @@ def add_movement_started_column(df: pd.DataFrame, movement_speed_threshold: floa
     while i < len(df):
         if not movement_started:
             if i + start_window < len(df):
-                # Check for sustained movement in Vy
-                if (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold-1).all():
+                # Check for sustained movement in either Vx OR Vy (more sensitive)
+                vx_moving = (df["vx"].iloc[i:i + start_window].abs() >= movement_speed_threshold-1).any()
+                vy_moving = (df["vy"].iloc[i:i + start_window].abs() >= movement_speed_threshold-1).any()
+                if vy_moving:
                     # Movement started, mark the range as moving
                     df.loc[i:i + start_window, "movement"] = True
                     movement_started = True
@@ -158,7 +160,8 @@ def end_of_movement(df: pd.DataFrame, movement_speed_threshold: float = 2, min_r
 ####################################################
 
 # todo check if good, but need trial_feedback
-def check_lost_status(df: pd.DataFrame) -> tuple[bool, float | None]:
+
+def check_lost_status(df: pd.DataFrame) -> Tuple[bool, Union[float, None]]:
     """
     Checks if the cursor touches the screen limit or stays on the limits for too long,
     but only after the trigger is crossed.
@@ -241,6 +244,11 @@ def get_RT(df: pd.DataFrame) -> float:
     Returns:
         float: The reaction time, which is the time of the first detected movement.
     """
+    # Debug: Check if movement column exists and has any True values
+    if "movement" not in df.columns:
+        print("[get_RT] Error: 'movement' column not found in DataFrame")
+        return None
+        
     movement_rows = df[df["movement"] == True]
     if movement_rows.empty:
         print(f"[get_RT] Aucun mouvement détecté pour ce trial. df shape = {df.shape}")
@@ -406,7 +414,7 @@ def get_target_enters(df: pd.DataFrame, min_target_time: float, time_step: float
 
 
 #todo check if good
-def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, trial_feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> float | str:
+def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, trial_feedback: bool, lost_status: bool, target_radius: float, min_target_time: float = 0.01, time_step: float = 0.01) -> Union[float, str]:
     """
     Computes the time between the trigger and the first entry into the target.
     Handles different cases based on trial_feedback and lost status.
@@ -440,7 +448,7 @@ def get_trigger_to_first_target_time(df: pd.DataFrame, t_trigger: float, trial_f
 #add edga case if movement stops?
 
 
-def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, trial_feedback: bool, lost_status: bool, time_step: float = 0.01) -> float | str:
+def get_trigger_to_first_target_distance(df: pd.DataFrame, t_trigger: float, trial_feedback: bool, lost_status: bool, time_step: float = 0.01) -> Union[float, str]:
     """
     Computes the distance traveled by the cursor from the trigger to the first entry into the target.
     Handles different cases based on feedback and lost status.
@@ -711,7 +719,6 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
     my_df = df[df["t"] >= t_trigger + t_trigger_buffer]
     if my_df.empty:
         return None, None
-
     if target_position == TargetPosition.C:
         return "centre", "centre"
 
@@ -735,7 +742,7 @@ def get_t_max_vx(df: pd.DataFrame, target_position: TargetPosition, t_trigger: f
 #initial direction of movement
 #######################################
 
-def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1) -> float:
+def get_initial_direction(df: pd.DataFrame, t_trigger : float, time_window: float = 0.1) -> float:
     """
     Computes the initial direction of movement based on the velocity vector within a time window after the trigger.
 
@@ -748,7 +755,7 @@ def get_initial_direction(df: pd.DataFrame, RT: float, time_window: float = 0.1)
         float: The angle of the initial movement direction in degrees.
     """
     # Filter the DataFrame to include rows within the time window after the trigger
-    df_window = df[(df["t"] >= RT) & (df["t"] <= RT + time_window)]
+    df_window = df[(df["t"] >= t_trigger) & (df["t"] <= t_trigger + time_window)]
 
     # Compute the average velocity in x and y directions
     avg_vx = df_window["vx"].mean()
@@ -769,7 +776,6 @@ def get_target_center(trial_data, trial_number):
         return trial_data["centre_cible_droite"]
     else:
         raise Exception("Unknown target position")
-
 
 
 
@@ -806,18 +812,17 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         total_movement_time = total_movement_distance = total_trial_time = total_distance_travelled = None
         finale_distance_to_center = None
         finale_distance_to_center_time = None
+        smoothness = None
 
         # Add time and speed columns
-        print("Adding time and speed columns")
+        print("preparing df")
         df = add_time_and_speed_to_df(df, time_step=time_step)
 
         # Add movement and trigger columns
-        print("Adding movement and trigger columns")
         df = add_movement_started_column(df, movement_speed_threshold=movement_speed_threshold, min_time_for_movement_start=min_time_for_movement_start, min_time_for_movement_stop=min_time_for_movement_stop, time_step=time_step)
         df = add_trigger_crossed_column(df, trigger=trigger)
 
         # Add target-related columns
-        print("Adding target-related columns")
         target_center = get_target_center(trial_data, trial_number)
         df = add_in_target_column(df, target_center=target_center, target_radius=target_radius)
 
@@ -831,7 +836,6 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
 
         # Pass only the boolean part (lost_status) to the lost_status parameter
         trial_status = get_trial_status(df, trial_feedback=trial_feedback, lost_status=lost_status, target_radius=target_radius, time_step=time_step)
-        print(f"trial_status: {trial_status}")
 
         t_trigger = get_t_trigger(df)
         if t_trigger is None:
@@ -844,6 +848,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         elif RT > t_trigger:
             print(f"RT ({RT}) is greater than t_trigger ({t_trigger}). Setting RT to t_trigger.")
             RT = t_trigger
+        print(f"RT: {RT}")
 
         RtTrig = get_RtTrig(t_trigger, RT)
         print(f"RtTrig: {RtTrig}")
@@ -874,7 +879,6 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         finale_distance_to_center, finale_distance_to_center_time = get_cursor_final_distance(df, movement_speed_threshold, trial_data, target_center)
         print(f"finale_distance_to_center: {finale_distance_to_center}, finale_distance_to_center_time: {finale_distance_to_center_time}")
 
-        print("Calculating max_vx and t_max_vx")
         max_vx, t_max_vx = get_t_max_vx(df, trial_data["target_positions"][trial_number], t_trigger, t_trigger_buffer=0.12)
         print(f"max_vx: {max_vx}, t_max_vx: {t_max_vx}")
         if t_max_vx == "centre":
@@ -885,9 +889,23 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         else:
             TtA = get_TtA(t_trigger, t_max_vx)
         print(f"TtA: {TtA}")
-        initial_direction_angle = get_initial_direction(df, RT, time_window=0.1)
+        initial_direction_angle = get_initial_direction(df, t_trigger, time_window=0.2)
         print(f"initial_direction_angle: {initial_direction_angle}")
 
+        # Calculate movement smoothness (dimensionless jerk)
+        smoothness = None
+        if RT is not None and t_first_target_enter is not None:
+            # Extract movement segment from movement onset to target entry
+            movement_mask = (df['t'] >= RT) & (df['t'] <= t_first_target_enter)
+            movement_df = df[movement_mask]
+            
+            if len(movement_df) >= 4:  # Need at least 4 points for jerk calculation
+                smoothness = dimensionless_jerk(
+                    movement_df['X'].values,
+                    movement_df['Y'].values, 
+                    movement_df['t'].values
+                )
+        print(f"movement_smoothness: {smoothness}")
 
         # Write results to CSV
         with open('resume_resultats.csv', 'a', newline='') as csvfile:
@@ -900,12 +918,13 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
                 total_movement_time, total_movement_distance, total_distance_travelled, total_trial_time, 
                 finale_distance_to_center, finale_distance_to_center_time,
                 max_vx, t_max_vx, TtA,
-                initial_direction_angle, 
+                initial_direction_angle, smoothness,
                 trial_status, int(trial_feedback),
                 trial_data["target_positions"][trial_number],
             ])
         
         df.to_csv(result_file)
+
         print(f"Trial computation completed for {result_file}")
 
     except Exception as e:
@@ -919,3 +938,169 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
             writer = csv.writer(csvfile)
             writer.writerow([result_file, f"Error: {e}"])
 
+def dimensionless_jerk(x, y, t):
+    """
+    Calculate the dimensionless jerk (smoothness metric) for a movement trajectory.
+    
+    Based on the standard normalized jerk metric (Flash & Hogan, 1985).
+    Formula: DJ = sqrt(0.5 * T^5 / PL^2 * ∫(jerk_magnitude^2) dt)
+    Lower values indicate smoother movement.
+    
+    Parameters:
+        x (array-like): x-coordinates of the trajectory (in pixels)
+        y (array-like): y-coordinates of the trajectory (in pixels)
+        t (array-like): time points corresponding to x,y coordinates (in seconds)
+        
+    Returns:
+        float: Dimensionless jerk value (lower values indicate smoother movement)
+               Typical values: 0.01-1 for very smooth movements, 1-10 for normal movements,
+               >10 for jerky movements. Returns None if calculation fails
+    """
+    try:
+        x = np.array(x)
+        y = np.array(y)
+        t = np.array(t)
+
+
+        if len(x) < 4 or len(y) < 4 or len(t) < 4:
+            return None
+            
+        # Calculate movement duration
+        T = (t[-1] - t[0]) 
+        if T <= 0:
+            return None
+            
+        # Calculate path length
+        dx = np.diff(x)
+        dy = np.diff(y)
+        path_segments = np.sqrt(dx**2 + dy**2)
+        PL = np.sum(path_segments)
+
+
+        if PL <= 0:
+            return None
+            
+        # Calculate time intervals
+        dt = np.diff(t)
+        if np.any(dt <= 0):
+            return None
+            
+        # Calculate velocities (first derivatives) in original units
+        vx = dx / dt
+        vy = dy / dt
+        
+        # Calculate accelerations (second derivatives)
+        # Use central differences for better accuracy
+        dt_acc = (dt[1:] + dt[:-1]) / 2
+        ax = np.diff(vx) / dt_acc
+        ay = np.diff(vy) / dt_acc
+        
+        # Calculate jerk (third derivatives) 
+        dt_jerk = (dt_acc[1:] + dt_acc[:-1]) / 2
+        jx = np.diff(ax) / dt_jerk
+        jy = np.diff(ay) / dt_jerk
+        # Calculate squared jerk magnitude
+        jerk_squared = jx**2 + jy**2
+        
+        # Integrate jerk squared over time
+        if len(jerk_squared) == 0:
+            return None
+            
+        jerk_integral = np.trapz(jerk_squared, dx=np.mean(dt_jerk))
+        
+
+        # Calculate dimensionless jerk using standard formula
+        # DJ = sqrt(0.5 * T^5 / PL^2 * ∫(jerk^2) dt
+        dimensionless_jerk_value = np.sqrt(0.5 * T**5 / PL**2 * jerk_integral)
+        
+        # Add debug information
+        
+        return dimensionless_jerk_value
+        
+    except Exception as e:
+        print(f"Error calculating dimensionless jerk: {e}")
+        return None
+
+
+def dimensionless_jerk_peak_speed(x, y, t):
+    """
+    Calculate the dimensionless jerk (smoothness metric) using peak speed normalization.
+    
+    Based on the reference implementation that uses peak speed instead of path length.
+    Formula: DJ = -T³/V²peak * ∫(jerk²) dt
+    Lower values (more negative) indicate smoother movement.
+    
+    Parameters:
+        x (array-like): x-coordinates of the trajectory (in pixels)
+        y (array-like): y-coordinates of the trajectory (in pixels)
+        t (array-like): time points corresponding to x,y coordinates (in seconds)
+        
+    Returns:
+        float: Dimensionless jerk value (more negative values indicate smoother movement)
+               Typical values: -1000 to -10 for smooth movements, closer to 0 for jerky movements
+               Returns None if calculation fails
+    """
+    try:
+        x = np.array(x)
+        y = np.array(y)
+        t = np.array(t)
+        
+        if len(x) < 4 or len(y) < 4 or len(t) < 4:
+            return None
+            
+        # Calculate movement duration
+        T = t[-1] - t[0]
+        if T <= 0:
+            return None
+            
+        # Calculate time intervals
+        dt = np.diff(t)
+        if np.any(dt <= 0):
+            return None
+            
+        # Calculate velocities (first derivatives)
+        dx = np.diff(x)
+        dy = np.diff(y)
+        vx = dx / dt
+        vy = dy / dt
+        
+        # Calculate speed profile (magnitude of velocity)
+        speed = np.sqrt(vx**2 + vy**2)
+        
+        # Find peak speed
+        peak_speed = np.max(np.abs(speed))
+        if peak_speed <= 0:
+            return None
+            
+        # Calculate accelerations (second derivatives)
+        dt_acc = (dt[1:] + dt[:-1]) / 2
+        ax = np.diff(vx) / dt_acc
+        ay = np.diff(vy) / dt_acc
+        
+        # Calculate jerk (third derivatives) 
+        dt_jerk = (dt_acc[1:] + dt_acc[:-1]) / 2
+        jx = np.diff(ax) / dt_jerk
+        jy = np.diff(ay) / dt_jerk
+        
+        # Calculate squared jerk magnitude
+        jerk_squared = jx**2 + jy**2
+        
+        # Integrate jerk squared over time
+        if len(jerk_squared) == 0:
+            return None
+            
+        jerk_integral = np.trapz(jerk_squared, dx=np.mean(dt_jerk))
+        
+        # Calculate scale factor and dimensionless jerk using peak speed formula
+        # DJ = -T³/V²peak * ∫(jerk²) dt
+        scale = T**3 / peak_speed**2
+        dimensionless_jerk_value = -scale * jerk_integral
+        
+        # Add debug information
+        print(f"Debug smoothness (peak speed): T={T:.3f}s, peak_speed={peak_speed:.1f}px/s, jerk_integral={jerk_integral:.2e}, result={dimensionless_jerk_value:.6f}")
+        
+        return dimensionless_jerk_value
+        
+    except Exception as e:
+        print(f"Error calculating dimensionless jerk (peak speed): {e}")
+        return None
