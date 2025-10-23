@@ -80,6 +80,7 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number, trial_feed
         parent_folder = trial_file.parent
         config_file = parent_folder / "trial_by_trial_config.csv"
         config_df = pd.read_csv(config_file, header=None)
+        config_df = pd.read_csv(config_file, header=None)
         print(f"Config DataFrame shape: {config_df.shape}")
         trial_feedback = config_df.iloc[trial_number-1, 1]
         trial_feedback = trial_feedback == 1
@@ -118,6 +119,7 @@ def analyse_trial(trial_file: pathlib.Path, trial_data, trial_number):
             result_file=trial_file.with_name(trial_file.stem + "_DF.xls"),
             df=pandas.read_csv(trial_file, delimiter=";"), time_step=0.01, trigger=trial_data["trigger"], trial_data=trial_data, trial_number=trial_number-1, min_target_time=0.01) # change to -1 trial_number since we start at 1 
         print(f"Analysis successful for trial: {trial_file}")
+
 
     except Exception as e:
         print(f"Analysis failed for trial: {trial_file}")
@@ -219,6 +221,7 @@ def explore_directory(path: pathlib.Path):
                 if trial_data:
                     analyse_trial(trial_file=child, trial_data=trial_data, trial_number=trial_number)
                     print(f"Filename: {child.name}, extracted trial_number: {trial_number}")
+
             except Exception as e:
                 print(e)
 
@@ -317,6 +320,7 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     print(df.head())
     print(df.dtypes)
 
+
     # Compute the new columns
     df['SA'] = df['trigger_to_target_time'] * df['trigger_to_target_distance']
     df['precision'] = df['target_to_stop_time'] * df['target_to_stop_distance']
@@ -357,6 +361,8 @@ def modify_resume_resultats(data_path, vmin, angle_threshold, time_interval, tim
     df['break_positions'] = break_position_arr
 
     # Save the updated DataFrame to a new CSV file
+    updated_csv_path = os.path.join(data_path, 'updated_resume_resultats.csv')
+    df.to_csv(updated_csv_path, index=False)
     updated_csv_path = os.path.join(data_path, 'updated_resume_resultats.csv')
     df.to_csv(updated_csv_path, index=False)
     print("Updated csv has been saved")
@@ -457,6 +463,29 @@ def trajectory_breaks_processing(output_trajectory_path, vmin, angle_threshold, 
                 print(f" BREAK Time: {t}, Average Angle: {angle_change}, Average Velocity: {velocity}, Average Position: ({x}, {y}), Acceleration: {acceleration}")
                 break_timing.append(float(t))
                 break_position.append((float(x), float(y)))
+
+            # Save png with breaks visualization
+            if format_version == "new":
+                fname_coord = pathlib.Path(path_trajectory).name
+                trajectory_dir = pathlib.Path(path_trajectory).parent
+                fname_png = transform_coord2image_fname(fname_coord)
+                trajectory_png_path = trajectory_dir / fname_png
+                image = Image.open(trajectory_png_path)
+
+                draw = ImageDraw.Draw(image)
+                for x, y in break_position:
+                    r = 5
+                    draw.ellipse((x - r, y - r, x + r, y + r), fill="red", outline="red")
+                
+                marked_fname_png = f"marked_{fname_png}"
+                new_image_path = os.path.join(trajectory_dir, marked_fname_png)
+                
+                image.save(new_image_path)
+                print(f"Saved marked image to: {new_image_path}")
+
+            # if format_version == "legacy": # TODO 
+            #     raise ImplementationError("Legacy format not implemented yet")
+            #     #pathlib.Path(output_path_trajectory) / "breaks.png"
 
             # Save png with breaks visualization
             if format_version == "new":
@@ -631,6 +660,7 @@ todo : do not count breaks at the end of trajectory when no FB. Do not count 1st
         prev_values.append((row['X'], row['Y'], row['Time']))
         extended_history.append((row['X'], row['Y'], row['Time']))
 
+        # TODO of ignoring the break inside of the targets 
         if prev_values[0][0] is not None and prev_values[0][1] is not None:
             v1 = np.array([prev_values[angle_window][0] - prev_values[0][0], prev_values[angle_window][1] - prev_values[0][1]])
             v2 = np.array([prev_values[-1][0] - prev_values[angle_window][0], prev_values[-1][1] - prev_values[angle_window][1]])
@@ -885,6 +915,9 @@ if __name__ == "__main__":
         # # Change the mode of the file to make it executable
         # os.chmod(rename_script_path, new_permissions)
         # Call the shell script
+        # subprocess.run([rename_script_path])
+        subprocess.run(["python3", "rename_csv_total.py", data_path_abs])
+
         # subprocess.run([rename_script_path])
         subprocess.run(["python3", "rename_csv_total.py", data_path_abs])
 

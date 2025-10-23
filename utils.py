@@ -925,6 +925,7 @@ def compute_trial(result_file: Path, trial_number: int, trial_data: dict, trigge
         
         df.to_csv(result_file)
 
+
         print(f"Trial computation completed for {result_file}")
 
     except Exception as e:
